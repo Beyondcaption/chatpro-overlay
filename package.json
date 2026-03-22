@@ -22,11 +22,6 @@
       "src/**/*",
       "assets/**/*"
     ],
-    "publish": {
-      "provider": "github",
-      "owner": "Beyondcaption",
-      "repo": "chatpro-overlay"
-    },
     "win": {
       "target": [
         {
