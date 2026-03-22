@@ -25,9 +25,7 @@ async function checkForUpdates(silent = true) {
         type: 'info',
         title: 'ChatPro Update verfuegbar',
         message: 'Neue Version ' + latest + ' verfuegbar!',
-        detail: 'Aktuelle Version: ' + current + '
-
-Moechtest du jetzt updaten? Die Download-Seite wird geoeffnet.',
+        detail: 'Aktuelle Version: ' + current + ' - Moechtest du jetzt updaten? Die Download-Seite wird geoeffnet.',
         buttons: ['Jetzt updaten', 'Spaeter'],
       });
       if (result.response === 0) shell.openExternal('https://github.com/Beyondcaption/chatpro-overlay/releases/latest');
