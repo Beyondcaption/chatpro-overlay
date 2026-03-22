@@ -1,0 +1,45 @@
+{
+  "name": "chatpro-overlay",
+  "version": "1.0.0",
+  "description": "ChatPro — German reply overlay for OnlyFans chatters",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64",
+    "build:mac": "electron-builder --mac --x64 --arm64",
+    "build:all": "electron-builder --win --mac --x64"
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.7"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.chatpro.overlay",
+    "productName": "ChatPro Overlay",
+    "copyright": "Copyright © 2024 ChatPro",
+    "files": ["src/**/*", "assets/**/*"],
+    "publish": {
+      "provider": "github",
+      "owner": "Beyondcaption",
+      "repo": "chatpro-overlay"
+    },
+    "win": {
+      "target": [{"target": "nsis", "arch": ["x64"]}]
+    },
+    "mac": {
+      "target": [{"target": "dmg", "arch": ["x64", "arm64"]}],
+      "category": "public.app-category.productivity"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ChatPro Overlay"
+    }
+  }
+}
