@@ -163,6 +163,10 @@
       <span class="field-label-right" id="autoLabel"></span>
     </div>
     <textarea class="de-input" id="deInput" placeholder="Paste German message here… (or auto-detected from clipboard)" oninput="autosize(this); scheduleTranslate()" onpaste="setTimeout(scheduleTranslate, 100)"></textarea>
+    <div class="de-translation" id="deTranslation">
+      <div class="de-translation-label">↩ Means in English</div>
+      <div class="de-translation-text" id="deTranslationText"></div>
+    </div>
 
     <div class="divider-row">
       <div class="divider-line"></div>
