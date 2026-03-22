@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.anthropic.com https://fonts.googleapis.com https://fonts.gstatic.com;">
+<title>ChatPro</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#111114; --s1:#161619; --s2:#1e1e23; --s3:#252530; --b1:#2e2e38; --b2:#3d3d4a;
+    --t1:#f0f0f5; --t2:#9898b0; --t3:#55556a; --t4:#33333f;
+    --pink:#ff4d8f; --pink2:#ff80b3; --pink-dim:rgba(255,77,143,0.12);
+    --gold:#ffb547; --gold-dim:rgba(255,181,71,0.1);
+    --green:#3dd68c; --green-dim:rgba(61,214,140,0.1);
+    --blue:#5b8ef0; --red:#ff5252; --purple:#b47aff;
+    --r:10px; --r-sm:6px;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:var(--bg); color:var(--t1); font-size:13px; overflow:hidden; }
+
+  /* Drag handle at top */
+  .titlebar {
+    -webkit-app-region: drag;
+    height: 36px;
+    background: var(--s1);
+    border-bottom: 1px solid var(--b1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    flex-shrink: 0;
+  }
+  .tb-left { display:flex; align-items:center; gap:8px; pointer-events:none; }
+  .tb-logo { font-size:12px; font-weight:700; color:var(--t2); letter-spacing:0.05em; }
+  .tb-hotkey { font-size:10px; color:var(--t4); font-family:'JetBrains Mono',monospace; background:var(--s2); border:1px solid var(--b1); border-radius:4px; padding:2px 7px; }
+  .tb-right { display:flex; gap:6px; -webkit-app-region:no-drag; }
+  .tb-btn { background:none; border:none; color:var(--t3); cursor:pointer; font-size:14px; padding:2px 5px; transition:color 0.15s; line-height:1; border-radius:4px; }
+  .tb-btn:hover { color:var(--t1); background:var(--s2); }
+  .tb-btn.close:hover { color:var(--red); }
+
+  .body { display:flex; flex-direction:column; height:calc(100% - 36px); overflow:hidden; }
+
+  /* Input section */
+  .input-section { padding:12px 14px; border-bottom:1px solid var(--b1); flex-shrink:0; }
+  .field-label { font-size:9px; font-weight:600; letter-spacing:0.14em; text-transform:uppercase; color:var(--t3); margin-bottom:5px; display:flex; align-items:center; justify-content:space-between; }
+  .field-label-right { font-size:9px; color:var(--t4); }
+  .de-input { width:100%; background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t1); font-family:'Instrument Sans',sans-serif; font-size:12px; padding:8px 10px; outline:none; resize:none; min-height:48px; max-height:80px; overflow-y:auto; line-height:1.55; transition:border-color 0.15s; }
+  .de-input:focus { border-color:var(--b2); }
+  .de-input::placeholder { color:var(--t3); }
+  .divider-row { display:flex; align-items:center; gap:8px; margin:8px 0; }
+  .divider-line { flex:1; height:1px; background:var(--b1); }
+  .divider-text { font-size:9px; color:var(--t4); letter-spacing:0.06em; white-space:nowrap; }
+  .en-input { width:100%; background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t1); font-family:'Instrument Sans',sans-serif; font-size:12px; padding:8px 10px; outline:none; resize:none; min-height:48px; max-height:80px; overflow-y:auto; line-height:1.55; transition:border-color 0.15s, box-shadow 0.15s; }
+  .en-input:focus { border-color:var(--pink); box-shadow:0 0 0 2px var(--pink-dim); }
+  .en-input::placeholder { color:var(--t3); }
+  .action-row { display:flex; gap:6px; margin-top:8px; align-items:center; }
+  .btn-gen { flex:1; background:linear-gradient(135deg,var(--pink),#ff8c69); border:none; border-radius:var(--r-sm); color:white; font-family:'Instrument Sans',sans-serif; font-size:11px; font-weight:600; padding:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; transition:opacity 0.15s; }
+  .btn-gen:hover:not(:disabled) { opacity:0.88; }
+  .btn-gen:disabled { opacity:0.4; cursor:not-allowed; }
+  .btn-mood { background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t2); font-size:11px; padding:8px 10px; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .btn-mood:hover { border-color:var(--b2); }
+  .spinner { width:11px; height:11px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.6s linear infinite; }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* Templates strip */
+  .templates-strip { padding:8px 14px; border-bottom:1px solid var(--b1); flex-shrink:0; }
+  .tpl-scroll { display:flex; gap:5px; overflow-x:auto; padding-bottom:2px; }
+  .tpl-scroll::-webkit-scrollbar { height:2px; }
+  .tpl-scroll::-webkit-scrollbar-thumb { background:var(--b1); border-radius:1px; }
+  .tpl-chip { background:var(--s2); border:1px solid var(--b1); border-radius:20px; padding:4px 10px; font-size:10px; color:var(--t2); cursor:pointer; white-space:nowrap; transition:all 0.15s; flex-shrink:0; }
+  .tpl-chip:hover { border-color:var(--pink); color:var(--pink); background:var(--pink-dim); }
+  .tpl-chip.cat-flirt:hover  { border-color:var(--pink);   color:var(--pink); }
+  .tpl-chip.cat-upsell:hover { border-color:var(--gold);   color:var(--gold); }
+  .tpl-chip.cat-comfort:hover{ border-color:var(--blue);   color:var(--blue); }
+  .tpl-chip.cat-engage:hover { border-color:var(--purple); color:var(--purple); }
+
+  /* Mood banner */
+  .mood-banner { margin:10px 14px 0; border-radius:var(--r-sm); padding:9px 11px; font-size:11px; line-height:1.55; display:none; animation:fadeup 0.25s ease both; }
+  .mood-banner.visible { display:block; }
+  .mood-label { font-size:9px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:3px; }
+  .mood-suggestion { font-weight:500; margin-top:4px; font-size:11px; }
+  .mood-banner.hot    { background:rgba(255,77,143,0.08);  border:1px solid rgba(255,77,143,0.2);  }
+  .mood-banner.hot    .mood-label { color:var(--pink); }
+  .mood-banner.warm   { background:rgba(255,181,71,0.08);  border:1px solid rgba(255,181,71,0.2);  }
+  .mood-banner.warm   .mood-label { color:var(--gold); }
+  .mood-banner.cold   { background:rgba(91,142,240,0.08);  border:1px solid rgba(91,142,240,0.2);  }
+  .mood-banner.cold   .mood-label { color:var(--blue); }
+  .mood-banner.angry  { background:rgba(255,82,82,0.08);   border:1px solid rgba(255,82,82,0.2);   }
+  .mood-banner.angry  .mood-label { color:var(--red); }
+
+  /* Results */
+  .results-scroll { flex:1; overflow-y:auto; padding:10px 14px 14px; }
+  .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--t4); text-align:center; gap:8px; }
+  .empty-icon { font-size:28px; opacity:0.3; }
+  .empty-text { font-size:11px; line-height:1.6; }
+
+  .reply-card { background:var(--s1); border:1px solid var(--b1); border-radius:var(--r); padding:11px 13px; margin-bottom:8px; animation:fadeup 0.25s ease both; transition:border-color 0.12s; cursor:default; }
+  .reply-card:hover { border-color:var(--b2); }
+  .reply-card:nth-child(1){animation-delay:0.04s;}.reply-card:nth-child(2){animation-delay:0.08s;}.reply-card:nth-child(3){animation-delay:0.12s;}
+  @keyframes fadeup{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
+
+  .rc-top { display:flex; align-items:center; gap:7px; margin-bottom:8px; }
+  .rc-label { font-size:9px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; }
+  .rc-label.l0{color:var(--pink);} .rc-label.l1{color:var(--purple);} .rc-label.l2{color:var(--gold);}
+  .rc-vibe { font-size:10px; color:var(--t3); font-style:italic; flex:1; }
+  .rc-score { font-size:10px; font-family:'JetBrains Mono',monospace; font-weight:500; }
+  .rc-de { font-size:13px; line-height:1.6; color:var(--t1); margin-bottom:7px; }
+  .rc-bt { background:var(--s2); border-radius:var(--r-sm); padding:6px 9px; margin-bottom:8px; }
+  .rc-bt-label { font-size:8px; text-transform:uppercase; letter-spacing:0.1em; color:var(--t4); margin-bottom:2px; }
+  .rc-bt-text { font-size:11px; color:var(--t3); font-style:italic; line-height:1.5; }
+  .rc-actions { display:flex; gap:5px; align-items:center; }
+  .btn-use { background:var(--pink-dim); border:1px solid rgba(255,77,143,0.25); border-radius:var(--r-sm); color:var(--pink); font-family:'Instrument Sans',sans-serif; font-size:10px; font-weight:600; padding:5px 12px; cursor:pointer; transition:all 0.15s; }
+  .btn-use:hover { background:rgba(255,77,143,0.2); }
+  .btn-use.done { background:var(--green-dim); border-color:rgba(61,214,140,0.25); color:var(--green); }
+  .btn-sm { background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t3); font-size:10px; padding:5px 9px; cursor:pointer; transition:all 0.15s; font-family:'JetBrains Mono',monospace; }
+  .btn-sm:hover { color:var(--t1); border-color:var(--b2); }
+  .btn-sm.ok { color:var(--green); border-color:rgba(61,214,140,0.3); }
+
+  /* Outcome row */
+  .outcome-row { display:none; margin-top:7px; padding-top:7px; border-top:1px solid var(--b1); }
+  .outcome-row.visible { display:flex; gap:4px; flex-wrap:wrap; }
+  .outcome-label { font-size:9px; color:var(--t4); width:100%; margin-bottom:3px; letter-spacing:0.08em; text-transform:uppercase; }
+  .btn-outcome { background:var(--s2); border:1px solid var(--b1); border-radius:20px; color:var(--t3); font-size:10px; padding:3px 10px; cursor:pointer; transition:all 0.15s; font-family:'Instrument Sans',sans-serif; }
+  .btn-outcome:hover { border-color:var(--b2); color:var(--t1); }
+  .btn-outcome.sel-replied { border-color:rgba(61,214,140,0.4); color:var(--green); background:var(--green-dim); }
+  .btn-outcome.sel-tipped  { border-color:rgba(255,181,71,0.4);  color:var(--gold);  background:var(--gold-dim); }
+  .btn-outcome.sel-quiet   { border-color:rgba(91,142,240,0.4);  color:var(--blue);  background:rgba(91,142,240,0.1); }
+  .btn-outcome.sel-left    { border-color:rgba(255,82,82,0.4);   color:var(--red);   background:rgba(255,82,82,0.1); }
+
+  /* Learn bar */
+  .learn-bar { padding:7px 14px; border-top:1px solid var(--b1); display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .lb-dot { width:5px; height:5px; border-radius:50%; background:var(--pink); animation:lp 2s ease-in-out infinite; flex-shrink:0; }
+  @keyframes lp{0%,100%{opacity:1;}50%{opacity:0.3;}}
+  .lb-text { font-size:10px; color:var(--t3); flex:1; }
+  .lb-text span { color:var(--t2); }
+  .lb-evolving { font-size:10px; color:var(--gold); display:none; }
+
+  ::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <div class="tb-left">
+    <span class="tb-logo">💬 ChatPro</span>
+    <span class="tb-hotkey" id="hotkeyLabel">Ctrl+Shift+T</span>
+  </div>
+  <div class="tb-right">
+    <button class="tb-btn" onclick="window.chatpro.openSettings()" title="Settings">⚙</button>
+    <button class="tb-btn close" onclick="window.chatpro.closeOverlay()" title="Hide">✕</button>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="input-section">
+    <div class="field-label">
+      German message from subscriber
+      <span class="field-label-right" id="autoLabel"></span>
+    </div>
+    <textarea class="de-input" id="deInput" placeholder="Paste German message here… (or auto-detected from clipboard)" oninput="autosize(this)"></textarea>
+
+    <div class="divider-row">
+      <div class="divider-line"></div>
+      <div class="divider-text">your reply in English</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <textarea class="en-input" id="enInput" placeholder="What you want to say… (or pick template below)" oninput="autosize(this)"></textarea>
+
+    <div class="action-row">
+      <button class="btn-mood" onclick="analyzeMood()" title="Detect mood">🔍</button>
+      <button class="btn-gen" id="genBtn" onclick="generateReplies()">
+        <span id="genBtnText">⚡ Generate</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="templates-strip">
+    <div class="tpl-scroll" id="tplScroll"></div>
+  </div>
+
+  <div class="mood-banner" id="moodBanner">
+    <div class="mood-label" id="moodLabel">Mood</div>
+    <div id="moodText" style="color:var(--t2);font-size:11px;"></div>
+    <div class="mood-suggestion" id="moodSuggestion"></div>
+  </div>
+
+  <div class="results-scroll" id="resultsScroll">
+    <div class="empty-state">
+      <div class="empty-icon">💬</div>
+      <div class="empty-text">Paste the German message<br>and your English reply,<br>then hit ⚡ Generate</div>
+    </div>
+  </div>
+
+  <div class="learn-bar">
+    <div class="lb-dot"></div>
+    <div class="lb-text" id="learnText">Learning active</div>
+    <div class="lb-evolving" id="evolvingText">↯ Evolving…</div>
+  </div>
+
+</div>
+
+<script>
+const TEMPLATES = [
+  {en:"You made me smile 😊",           cat:"flirt",   label:"😊 Smile"},
+  {en:"I've been thinking about you…",  cat:"flirt",   label:"💭 Thinking"},
+  {en:"I saved something just for you", cat:"upsell",  label:"🎁 Special"},
+  {en:"Want a sneak peek of my new content?", cat:"upsell", label:"👀 Peek"},
+  {en:"Thank you for always being here",cat:"comfort", label:"💙 Thanks"},
+  {en:"You're one of my favourites",    cat:"comfort", label:"⭐ Fav"},
+  {en:"Hey, I missed you!",             cat:"engage",  label:"✨ Missed you"},
+  {en:"Is everything okay? Haven't heard from you", cat:"engage", label:"🔔 Check-in"},
+  {en:"I have something exclusive for loyal fans", cat:"upsell", label:"💎 Exclusive"},
+  {en:"You always know what to say",    cat:"flirt",   label:"💕 Sweet"},
+];
+
+let apiKey = '';
+let learnData = { examples:[], feedbacks:[], rules:'', total:0 };
+let lastDeText = '';
+let lastUsedReply = '';
+
+// ── Init ──
+async function init(){
+  const settings = await window.chatpro.getSettings();
+  apiKey = settings.apiKey || '';
+  const hk = settings.hotkey || 'CommandOrControl+Shift+T';
+  document.getElementById('hotkeyLabel').textContent = hk.replace('CommandOrControl','Ctrl').replace('Command','Cmd');
+
+  learnData = await window.chatpro.getLearning();
+  updateLearnBar();
+  renderTemplates();
+
+  // Listen for auto-detected text from clipboard
+  window.chatpro.onSetDeText((text) => {
+    document.getElementById('deInput').value = text;
+    autosize(document.getElementById('deInput'));
+    document.getElementById('autoLabel').textContent = '← auto-detected';
+    setTimeout(()=>{ document.getElementById('autoLabel').textContent=''; }, 2000);
+    document.getElementById('enInput').focus();
+  });
+}
+init();
+
+// ── Templates ──
+function renderTemplates(){
+  const strip = document.getElementById('tplScroll');
+  strip.innerHTML = TEMPLATES.map(t =>
+    `<button class="tpl-chip cat-${t.cat}" onclick="useTpl('${escAttr(t.en)}')">${escHtml(t.label)}</button>`
+  ).join('');
+}
+function useTpl(en){
+  document.getElementById('enInput').value = en;
+  autosize(document.getElementById('enInput'));
+  document.getElementById('enInput').focus();
+}
+
+// ── Mood ──
+async function analyzeMood(){
+  const de = document.getElementById('deInput').value.trim();
+  if(!de){ document.getElementById('deInput').focus(); return; }
+  if(!apiKey){ window.chatpro.openSettings(); return; }
+  const btn = document.querySelector('.btn-mood');
+  btn.textContent = '…'; btn.disabled = true;
+  try{
+    const raw = await callClaude(
+      `Analyze this German OnlyFans subscriber message. Return ONLY valid JSON:
+{"mood":"hot|warm|cold|angry","moodLabel":"2-word label","analysis":"1 short sentence what they feel","suggestion":"1 sentence what chatter should do NOW — very specific"}`,
+      `"${de}"`
+    );
+    const d = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    const b = document.getElementById('moodBanner');
+    b.className = 'mood-banner visible ' + d.mood;
+    document.getElementById('moodLabel').textContent = '🔍 ' + (d.moodLabel||'Mood detected');
+    document.getElementById('moodText').textContent   = d.analysis || '';
+    document.getElementById('moodSuggestion').textContent = '→ ' + (d.suggestion||'');
+  }catch(e){ console.error(e); }
+  finally{ btn.textContent='🔍'; btn.disabled=false; }
+}
+
+// ── Generate ──
+async function generateReplies(){
+  const de = document.getElementById('deInput').value.trim();
+  const en = document.getElementById('enInput').value.trim();
+  if(!de||!en){ if(!de) document.getElementById('deInput').focus(); else document.getElementById('enInput').focus(); return; }
+  if(!apiKey){ window.chatpro.openSettings(); return; }
+
+  lastDeText = de;
+  const btn=document.getElementById('genBtn'), txt=document.getElementById('genBtnText');
+  btn.disabled=true; txt.innerHTML='<div class="spinner"></div>';
+
+  const learnCtx = buildLearnCtx();
+
+  try{
+    const raw = await callClaude(
+      `You are an expert native German speaker writing chat messages for OnlyFans. The chatter is Filipino and does not speak German — write in English, they send in German.
+
+GOAL: Build long-term loyalty with German subscribers. Sound like a real German person — warm, personal, engaging. Never robotic.
+
+RULES:
+- Match the subscriber's energy and tone exactly
+- Natural German chat language — contractions, casual phrasing
+- Same length as the original message
+- Subscriber must feel genuinely heard${learnCtx ? '\n\n'+learnCtx : ''}
+
+Return ONLY valid JSON:
+{"variants":[
+  {"label":"Natural & warm","vibe":"one-line","de":"German text","bt":"English back-translation","score":92},
+  {"label":"Playful & flirty","vibe":"one-line","de":"German text","bt":"English back-translation","score":88},
+  {"label":"Engaging & teasing","vibe":"one-line","de":"German text","bt":"English back-translation","score":85}
+]}`,
+      `Subscriber wrote (German): "${de}"\nChatter wants to say (English): "${en}"`
+    );
+    const d = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    renderReplies(d.variants);
+    learnData.total++;
+    updateLearnBar();
+  }catch(e){
+    document.getElementById('resultsScroll').innerHTML=`<div style="padding:16px;color:#ff5252;font-size:12px;">Error: ${escHtml(e.message)}<br><br><small style="color:var(--t3);">Check your API key in Settings (⚙)</small></div>`;
+  }
+  finally{ btn.disabled=false; txt.innerHTML='⚡ Generate'; }
+}
+
+function buildLearnCtx(){
+  const parts=[];
+  if(learnData.rules) parts.push('LEARNED STYLE RULES:\n'+learnData.rules);
+  if(learnData.examples?.length){
+    const refs=learnData.examples.slice(-5).map(e=>`  DE: "${(e.de||'').substring(0,60)}" → Reply: "${e.reply}" (outcome: ${e.outcome||'sent'})`).join('\n');
+    parts.push('GOOD PAST EXAMPLES:\n'+refs);
+  }
+  return parts.join('\n\n');
+}
+
+// ── Render replies ──
+function renderReplies(variants){
+  const colors=['l0','l1','l2'];
+  document.getElementById('resultsScroll').innerHTML = variants.map((v,i)=>{
+    const st=v.de.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
+    const sc=v.score||85;
+    const scColor=sc>=88?'var(--green)':sc>=78?'var(--gold)':'var(--blue)';
+    return `<div class="reply-card" id="rc${i}">
+      <div class="rc-top">
+        <span class="rc-label ${colors[i]}">${escHtml(v.label)}</span>
+        <span class="rc-vibe">${escHtml(v.vibe)}</span>
+        <span class="rc-score" style="color:${scColor};">${sc}%</span>
+      </div>
+      <div class="rc-de">${escHtml(v.de)}</div>
+      <div class="rc-bt">
+        <div class="rc-bt-label">↩ Means in English</div>
+        <div class="rc-bt-text">${escHtml(v.bt)}</div>
+      </div>
+      <div class="rc-actions">
+        <button class="btn-use" id="use${i}" onclick="useReply(${i},\`${st}\`)">✓ Copy & Use</button>
+        <button class="btn-sm" onclick="listenDE(\`${st}\`)">▶</button>
+      </div>
+      <div class="outcome-row" id="out${i}">
+        <div class="outcome-label">What happened?</div>
+        <button class="btn-outcome" onclick="setOutcome(${i},'replied',\`${st}\`)">💬 Replied</button>
+        <button class="btn-outcome" onclick="setOutcome(${i},'tipped',\`${st}\`)">💰 Tipped</button>
+        <button class="btn-outcome" onclick="setOutcome(${i},'quiet',\`${st}\`)">🔇 Quiet</button>
+        <button class="btn-outcome" onclick="setOutcome(${i},'left',\`${st}\`)">👋 Left</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Use reply ──
+async function useReply(i, text){
+  await window.chatpro.copyToClipboard(text);
+  lastUsedReply = text;
+  // Mark as used
+  const btn=document.getElementById('use'+i);
+  if(btn){ btn.textContent='✓ Copied!'; btn.classList.add('done'); }
+  // Show outcome row after 1.5s
+  setTimeout(()=>{
+    const outRow=document.getElementById('out'+i);
+    if(outRow) outRow.classList.add('visible');
+  }, 1500);
+  // Save as example without outcome yet
+  await window.chatpro.saveExample({ de:lastDeText, reply:text, outcome:'sent', ts:Date.now() });
+}
+
+// ── Outcome tracking ──
+async function setOutcome(i, outcome, text){
+  const outRow=document.getElementById('out'+i);
+  if(outRow){
+    outRow.querySelectorAll('.btn-outcome').forEach(b=>b.className='btn-outcome');
+    const clickedBtn=outRow.querySelector(`[onclick*="'${outcome}'"]`);
+    if(clickedBtn) clickedBtn.classList.add(`sel-${outcome}`);
+  }
+  // Save outcome — THIS is the learning signal
+  const result = await window.chatpro.saveOutcome({ deText:lastDeText, replyText:text, outcome });
+  // Update last example with outcome
+  await window.chatpro.saveExample({ de:lastDeText, reply:text, outcome, ts:Date.now() });
+  learnData.feedbacks.push({deText:lastDeText, replyText:text, outcome, ts:Date.now()});
+  updateLearnBar();
+  // Trigger evolution if enough data
+  if(result.shouldEvolve) evolveRules();
+}
+
+// ── Self-evolution ──
+async function evolveRules(){
+  document.getElementById('evolvingText').style.display='block';
+  const recent = learnData.feedbacks.slice(-30);
+  const replied = recent.filter(f=>f.outcome==='replied'||f.outcome==='tipped').map(f=>`  Reply: "${(f.replyText||'').substring(0,80)}" → ${f.outcome}`).slice(0,8).join('\n');
+  const quiet   = recent.filter(f=>f.outcome==='quiet'||f.outcome==='left').map(f=>`  Reply: "${(f.replyText||'').substring(0,80)}" → ${f.outcome}`).slice(0,5).join('\n');
+  try{
+    const newRules = await callClaude(
+      `You analyze German OnlyFans chat outcomes to generate style rules for a Filipino chatter. Write concise, actionable rules based on what worked vs what didn't. Max 150 words. ONLY the rules, no preamble.`,
+      `REPLIES THAT GOT POSITIVE RESPONSE (replied/tipped):\n${replied||'None yet'}\n\nREPLIES THAT FAILED (went quiet/left):\n${quiet||'None yet'}\n\nEXISTING RULES: ${learnData.rules||'None'}`
+    );
+    learnData.rules = newRules.trim();
+    await window.chatpro.saveRules(newRules.trim());
+    updateLearnBar();
+  }catch(e){ console.error('Evolution error:',e); }
+  finally{ document.getElementById('evolvingText').style.display='none'; }
+}
+
+// ── Learn bar ──
+function updateLearnBar(){
+  const el=document.getElementById('learnText');
+  const fb=learnData.feedbacks?.length||0;
+  const evo=learnData.rules?'Evolved':'Not evolved yet';
+  const next=15-(fb%15);
+  if(learnData.rules) el.innerHTML=`<span>✦ Learning active</span> — ${evo} · next in ${next} outcomes`;
+  else el.innerHTML=`Learning: ${fb}/15 outcomes to first evolution`;
+}
+
+// ── Audio ──
+function listenDE(text){
+  if(!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utt=new SpeechSynthesisUtterance(text);
+  utt.lang='de-DE'; utt.rate=0.9;
+  const voices=window.speechSynthesis.getVoices();
+  const dv=voices.find(v=>v.lang.startsWith('de'));
+  if(dv) utt.voice=dv;
+  window.speechSynthesis.speak(utt);
+}
+if(window.speechSynthesis) window.speechSynthesis.getVoices();
+
+// ── Claude API ──
+async function callClaude(system, userMsg){
+  const key = apiKey || await window.chatpro.getApiKey();
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system,messages:[{role:'user',content:userMsg}]})
+  });
+  const data=await res.json();
+  if(data.error) throw new Error(data.error.message);
+  return data.content.map(b=>b.text||'').join('');
+}
+
+// ── Utils ──
+function autosize(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,80)+'px'; }
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s){ return String(s||'').replace(/'/g,"\\'"); }
+document.addEventListener('keydown',e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter') generateReplies(); if(e.key==='Escape') window.chatpro.closeOverlay(); });
+</script>
+</body>
+</html>
