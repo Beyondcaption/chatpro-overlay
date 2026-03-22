@@ -1,40 +1,46 @@
 const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, Tray, Menu, nativeImage, screen, shell, dialog } = require('electron');
 const path = require('path');
 const fs   = require('fs');
-// ── Simple GitHub update checker (no code signing needed) ──
-async function checkForUpdates(silent = true) {
-  try {
-    const https = require('https');
-    const options = {
-      hostname: 'api.github.com',
-      path: '/repos/Beyondcaption/chatpro-overlay/releases/latest',
-      headers: { 'User-Agent': 'ChatPro-Overlay' }
-    };
-    const data = await new Promise((resolve, reject) => {
-      https.get(options, res => {
-        let body = '';
-        res.on('data', chunk => body += chunk);
-        res.on('end', () => resolve(JSON.parse(body)));
-        res.on('error', reject);
-      }).on('error', reject);
+// ── Simple GitHub update checker ──
+function checkForUpdates(silent) {
+  if (silent === undefined) silent = true;
+  var https = require('https');
+  var options = {
+    hostname: 'api.github.com',
+    path: '/repos/Beyondcaption/chatpro-overlay/releases/latest',
+    headers: { 'User-Agent': 'ChatPro-Overlay' }
+  };
+  https.get(options, function(res) {
+    var body = '';
+    res.on('data', function(chunk) { body += chunk; });
+    res.on('end', function() {
+      try {
+        var data = JSON.parse(body);
+        var latest = data.tag_name || '';
+        var current = 'v' + app.getVersion();
+        if (latest && latest !== current) {
+          dialog.showMessageBox({
+            type: 'info',
+            title: 'Update verfuegbar',
+            message: 'Version ' + latest + ' verfuegbar!',
+            detail: 'Jetzt herunterladen?',
+            buttons: ['Ja', 'Spaeter']
+          }).then(function(r) {
+            if (r.response === 0) {
+              shell.openExternal('https://github.com/Beyondcaption/chatpro-overlay/releases/latest');
+            }
+          });
+        } else if (!silent) {
+          dialog.showMessageBox({
+            type: 'info',
+            title: 'ChatPro',
+            message: 'Neueste Version installiert.',
+            buttons: ['OK']
+          });
+        }
+      } catch(e) { console.error('[UPDATE]', e.message); }
     });
-    const latest = data.tag_name || '';
-    const current = 'v' + app.getVersion();
-    if (latest && latest !== current) {
-      const result = await dialog.showMessageBox({
-        type: 'info',
-        title: 'ChatPro Update verfuegbar',
-        message: 'Neue Version ' + latest + ' verfuegbar!',
-        detail: 'Aktuelle Version: ' + current + ' - Moechtest du jetzt updaten? Die Download-Seite wird geoeffnet.',
-        buttons: ['Jetzt updaten', 'Spaeter'],
-      });
-      if (result.response === 0) shell.openExternal('https://github.com/Beyondcaption/chatpro-overlay/releases/latest');
-    } else if (!silent) {
-      dialog.showMessageBox({ type: 'info', title: 'ChatPro', message: 'Du hast die neueste Version ' + current + '.', buttons: ['OK'] });
-    }
-  } catch(e) {
-    console.error('[UPDATE CHECK]', e.message);
-  }
+  }).on('error', function(e) { console.error('[UPDATE]', e.message); });
 }
 
 // ── Simple JSON file store ──
