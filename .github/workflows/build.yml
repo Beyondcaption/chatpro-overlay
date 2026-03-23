@@ -23,12 +23,18 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Windows exe
+      - name: Build Windows
         run: npx electron-builder --win --x64 --publish never
 
-      - name: Upload exe to Release
+      - name: Zip the exe
+        run: |
+          cd dist
+          Compress-Archive -Path "ChatPro Overlay Setup 1.1.0.exe" -DestinationPath "ChatPro-Overlay-Setup.zip"
+        shell: pwsh
+
+      - name: Upload to Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            dist/*.exe
+            dist/ChatPro-Overlay-Setup.zip
           token: ${{ secrets.GITHUB_TOKEN }}
