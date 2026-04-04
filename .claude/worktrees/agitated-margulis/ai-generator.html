@@ -1,0 +1,2034 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Generator Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #07070e;
+    --bg-secondary: #0d0d17;
+    --bg-tertiary: #141420;
+    --bg-card: #111120;
+    --bg-hover: #1a1a2e;
+    --bg-glass: rgba(20,20,35,0.7);
+    --accent-primary: #7c3aed;
+    --accent-secondary: #a855f7;
+    --accent-pink: #c026d3;
+    --accent-glow: rgba(124,58,237,0.4);
+    --accent-gradient: linear-gradient(135deg,#7c3aed,#c026d3);
+    --accent-gradient-btn: linear-gradient(135deg,#6d28d9 0%,#7c3aed 40%,#a855f7 70%,#c026d3 100%);
+    --text-primary: #f0f0f8;
+    --text-secondary: #a0a0b8;
+    --text-muted: #5a5a78;
+    --border-color: #1e1e35;
+    --border-active: #7c3aed;
+    --success: #10b981;
+    --error: #ef4444;
+    --warning: #f59e0b;
+    --gold: #f59e0b;
+    --sidebar-width: 360px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --shadow-glow: 0 0 24px rgba(124,58,237,0.3);
+    --shadow-card: 0 8px 32px rgba(0,0,0,0.5);
+    --transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124,58,237,0.12), transparent),
+      linear-gradient(rgba(30,30,60,0.15) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30,30,60,0.15) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+  }
+
+  /* ===== SCROLLBAR ===== */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a45; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }
+
+  /* ===== HEADER ===== */
+  header {
+    background: rgba(13,13,23,0.9);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 20px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 100;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(124,58,237,0.4), rgba(192,38,211,0.4), transparent);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.5px;
+  }
+  .logo-icon {
+    width: 34px; height: 34px;
+    background: var(--accent-gradient);
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    box-shadow: var(--shadow-glow);
+    animation: logoPulse 3s ease-in-out infinite;
+  }
+  @keyframes logoPulse {
+    0%,100% { box-shadow: 0 0 15px rgba(124,58,237,0.4); }
+    50% { box-shadow: 0 0 30px rgba(192,38,211,0.6); }
+  }
+  .logo-text { background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .pro-badge {
+    background: linear-gradient(135deg,#f59e0b,#f97316);
+    color: #000;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+    margin-left: -4px;
+  }
+
+  .header-right { display: flex; align-items: center; gap: 10px; }
+
+  .header-badge {
+    background: var(--bg-glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--error); transition: var(--transition); }
+  .status-dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
+
+  .btn-icon {
+    width: 36px; height: 36px;
+    background: var(--bg-glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 16px;
+    transition: var(--transition);
+  }
+  .btn-icon:hover { background: rgba(124,58,237,0.2); border-color: var(--accent-primary); color: var(--text-primary); }
+
+  /* ===== TABS ===== */
+  .tabs-bar {
+    background: rgba(13,13,23,0.8);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 20px;
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .tab-btn {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text-secondary); }
+  .tab-btn.active { color: var(--accent-secondary); border-bottom-color: var(--accent-primary); }
+
+  /* ===== LAYOUT ===== */
+  .main-layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    background: rgba(13,13,23,0.95);
+    backdrop-filter: blur(20px);
+    border-right: 1px solid var(--border-color);
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-section { padding: 14px 14px 0; }
+  .sidebar-section:last-child { padding-bottom: 14px; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+    margin-left: 6px;
+  }
+  .section-toggle {
+    font-size: 10px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+  .section-toggle.collapsed { transform: rotate(-90deg); }
+  .section-body { overflow: hidden; transition: max-height 0.3s ease; }
+  .section-body.collapsed { max-height: 0 !important; }
+
+  .section-divider { height: 1px; background: var(--border-color); margin: 10px 0; }
+
+  /* ===== MODEL PRESETS ===== */
+  .preset-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+  .preset-btn {
+    background: var(--bg-glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 10px 6px;
+    cursor: pointer;
+    text-align: center;
+    transition: var(--transition);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+  .preset-btn .preset-icon { font-size: 20px; }
+  .preset-btn:hover { border-color: var(--accent-primary); color: var(--text-secondary); background: rgba(124,58,237,0.1); }
+  .preset-btn.active {
+    background: rgba(124,58,237,0.2);
+    border-color: var(--accent-primary);
+    color: var(--accent-secondary);
+    box-shadow: 0 0 12px rgba(124,58,237,0.2);
+  }
+
+  /* ===== QUICK TAGS ===== */
+  .tag-group { margin-bottom: 10px; }
+  .tag-group-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    padding: 0 2px;
+  }
+  .tags-wrap { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag-chip {
+    background: var(--bg-glass);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 3px 9px;
+    font-size: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: var(--transition);
+    user-select: none;
+    white-space: nowrap;
+  }
+  .tag-chip:hover { border-color: var(--accent-primary); color: var(--accent-secondary); background: rgba(124,58,237,0.1); }
+  .tag-chip.active { background: rgba(124,58,237,0.25); border-color: var(--accent-primary); color: var(--accent-secondary); }
+
+  /* ===== TEMPLATES ===== */
+  .templates-scroll {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+  .templates-scroll::-webkit-scrollbar { display: none; }
+  .template-card {
+    flex-shrink: 0;
+    background: var(--bg-glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: var(--transition);
+    min-width: 110px;
+    max-width: 120px;
+    text-align: center;
+  }
+  .template-card:hover { border-color: var(--accent-primary); background: rgba(124,58,237,0.15); transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+  .template-card .t-icon { font-size: 22px; margin-bottom: 5px; display: block; }
+  .template-card .t-name { font-size: 10px; font-weight: 600; color: var(--text-secondary); line-height: 1.3; }
+
+  /* ===== TEXTAREA ===== */
+  .prompt-area {
+    width: 100%;
+    background: rgba(20,20,40,0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    line-height: 1.6;
+    resize: none;
+    transition: var(--transition);
+    min-height: 80px;
+  }
+  .prompt-area:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
+  .prompt-area::placeholder { color: var(--text-muted); }
+
+  .prompt-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+  .char-count { font-size: 10px; color: var(--text-muted); }
+  .btn-clear-prompt {
+    background: none; border: none;
+    color: var(--text-muted); font-size: 10px;
+    cursor: pointer; padding: 2px 5px;
+    border-radius: 3px; transition: var(--transition);
+  }
+  .btn-clear-prompt:hover { color: var(--error); background: rgba(239,68,68,0.1); }
+
+  /* ===== SLIDERS & SELECTS ===== */
+  .control-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .control-label { font-size: 11px; color: var(--text-secondary); font-weight: 500; flex-shrink: 0; width: 110px; }
+  .control-value { font-size: 11px; color: var(--accent-secondary); font-weight: 700; min-width: 30px; text-align: right; flex-shrink: 0; }
+  .slider-wrap { flex: 1; margin: 0 10px; }
+
+  input[type="range"] {
+    width: 100%; -webkit-appearance: none;
+    height: 4px; background: var(--bg-hover);
+    border-radius: 2px; cursor: pointer; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px;
+    background: var(--accent-gradient); border-radius: 50%;
+    box-shadow: 0 0 8px rgba(124,58,237,0.6); cursor: pointer; transition: var(--transition);
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.25); }
+
+  select, .form-input {
+    background: rgba(20,20,40,0.8);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+    transition: var(--transition);
+    width: 100%;
+  }
+  select { -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%235a5a78' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px;
+  }
+  select:focus, .form-input:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
+
+  /* ===== RESOLUTION GRID ===== */
+  .resolution-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; }
+  .res-btn {
+    background: var(--bg-glass); border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm); padding: 7px 4px;
+    cursor: pointer; text-align: center; transition: var(--transition);
+    color: var(--text-muted); font-size: 10px; font-weight: 600;
+  }
+  .res-btn:hover { border-color: var(--accent-primary); color: var(--text-secondary); }
+  .res-btn.active { background: rgba(124,58,237,0.2); border-color: var(--accent-primary); color: var(--accent-secondary); }
+
+  /* ===== DURATION ===== */
+  .duration-grid { display: flex; gap: 6px; }
+  .dur-btn {
+    flex: 1; background: var(--bg-glass); border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm); padding: 7px 4px;
+    cursor: pointer; text-align: center; color: var(--text-muted);
+    font-size: 11px; font-weight: 600; transition: var(--transition);
+  }
+  .dur-btn:hover { border-color: var(--accent-primary); color: var(--text-secondary); }
+  .dur-btn.active { background: rgba(124,58,237,0.2); border-color: var(--accent-primary); color: var(--accent-secondary); }
+
+  /* ===== GENERATE BUTTON ===== */
+  .generate-wrap {
+    position: sticky;
+    bottom: 0;
+    background: linear-gradient(to top, rgba(13,13,23,1) 60%, transparent);
+    padding: 16px 14px 14px;
+    margin-top: auto;
+  }
+  .btn-generate {
+    width: 100%;
+    padding: 14px 20px;
+    background: var(--accent-gradient-btn);
+    border: none;
+    border-radius: var(--radius-lg);
+    color: white;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(124,58,237,0.5);
+    letter-spacing: 0.3px;
+  }
+  .btn-generate::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    transition: left 0.6s;
+  }
+  .btn-generate:hover::before { left: 100%; }
+  .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(124,58,237,0.6); }
+  .btn-generate:active { transform: translateY(0); }
+  .btn-generate:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .btn-generate.generating { animation: btnPulse 1.5s ease-in-out infinite; }
+  @keyframes btnPulse {
+    0%,100% { box-shadow: 0 4px 20px rgba(124,58,237,0.5); }
+    50% { box-shadow: 0 4px 30px rgba(192,38,211,0.7); }
+  }
+
+  /* ===== SPINNER ===== */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white; border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== MAIN CONTENT ===== */
+  .main-content {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    padding: 20px;
+    background: transparent;
+  }
+
+  /* ===== PROGRESS ===== */
+  .progress-container { margin-bottom: 20px; display: none; }
+  .progress-container.visible { display: block; }
+  .progress-card {
+    background: var(--bg-glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(124,58,237,0.3);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    display: flex; flex-direction: column; gap: 12px;
+    box-shadow: 0 0 30px rgba(124,58,237,0.1);
+  }
+  .progress-header { display: flex; align-items: center; justify-content: space-between; }
+  .progress-title { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .pulse-dot {
+    width: 8px; height: 8px;
+    background: var(--accent-primary); border-radius: 50%;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(124,58,237,0.5); }
+    50% { box-shadow: 0 0 0 6px rgba(124,58,237,0); transform: scale(1.2); }
+  }
+  .progress-status { font-size: 11px; color: var(--text-muted); }
+  .progress-bar-track { height: 6px; background: var(--bg-hover); border-radius: 3px; overflow: hidden; }
+  .progress-bar-fill {
+    height: 100%; background: var(--accent-gradient);
+    border-radius: 3px; transition: width 0.4s ease; width: 0%;
+    position: relative;
+  }
+  .progress-bar-fill::after {
+    content: ''; position: absolute; top: 0; right: 0;
+    width: 40px; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4));
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes shimmer { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
+  .progress-steps { display: flex; gap: 6px; flex-wrap: wrap; }
+  .step-badge {
+    padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 500;
+    background: var(--bg-tertiary); color: var(--text-muted);
+    border: 1px solid var(--border-color); transition: var(--transition);
+  }
+  .step-badge.active { background: rgba(124,58,237,0.2); color: var(--accent-secondary); border-color: var(--accent-primary); }
+  .step-badge.done { background: rgba(16,185,129,0.15); color: var(--success); border-color: var(--success); }
+
+  /* ===== MESSAGES ===== */
+  .message-box {
+    padding: 12px 16px; border-radius: var(--radius-md);
+    font-size: 12px; margin-bottom: 16px;
+    display: none; align-items: flex-start; gap: 10px; line-height: 1.5;
+  }
+  .message-box.visible { display: flex; }
+  .message-box.error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+  .message-box.success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
+  .message-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+  /* ===== GALLERY HEADER ===== */
+  .gallery-header { margin-bottom: 16px; }
+  .gallery-top-row {
+    display: flex; align-items: center;
+    justify-content: space-between; margin-bottom: 12px;
+  }
+  .gallery-title {
+    font-size: 15px; font-weight: 700; color: var(--text-primary);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .gallery-count {
+    background: rgba(124,58,237,0.2); border: 1px solid rgba(124,58,237,0.3);
+    border-radius: 20px; padding: 2px 9px;
+    font-size: 10px; color: var(--accent-secondary); font-weight: 600;
+  }
+  .gallery-actions { display: flex; gap: 7px; align-items: center; }
+
+  .gallery-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .filter-tabs { display: flex; gap: 4px; }
+  .filter-tab {
+    padding: 5px 12px;
+    background: var(--bg-glass); border: 1px solid var(--border-color);
+    border-radius: 20px; font-size: 11px; font-weight: 500;
+    color: var(--text-muted); cursor: pointer; transition: var(--transition);
+  }
+  .filter-tab:hover { border-color: var(--accent-primary); color: var(--text-secondary); }
+  .filter-tab.active { background: rgba(124,58,237,0.2); border-color: var(--accent-primary); color: var(--accent-secondary); }
+
+  .sort-select {
+    background: var(--bg-glass); border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm); padding: 5px 24px 5px 9px;
+    color: var(--text-secondary); font-family: 'Inter', sans-serif;
+    font-size: 11px; cursor: pointer; outline: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%235a5a78' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 7px center;
+    width: auto; transition: var(--transition);
+  }
+  .sort-select:focus { border-color: var(--accent-primary); }
+
+  /* ===== GALLERY GRID (masonry-like) ===== */
+  .gallery-grid {
+    columns: 3;
+    column-gap: 12px;
+  }
+  @media (max-width: 1200px) { .gallery-grid { columns: 2; } }
+  @media (max-width: 800px) { .gallery-grid { columns: 1; } }
+
+  .gallery-item {
+    break-inside: avoid;
+    background: var(--bg-glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: var(--transition);
+    position: relative;
+    margin-bottom: 12px;
+    cursor: pointer;
+  }
+  .gallery-item:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-glow), var(--shadow-card);
+  }
+  .gallery-item.selected { border-color: var(--accent-secondary); box-shadow: 0 0 0 2px rgba(168,85,247,0.4); }
+
+  .gallery-img-wrap { position: relative; overflow: hidden; background: var(--bg-tertiary); }
+  .gallery-img-wrap img, .gallery-img-wrap video {
+    width: 100%; display: block;
+    object-fit: cover; transition: transform 0.4s ease;
+  }
+  .gallery-item:hover .gallery-img-wrap img,
+  .gallery-item:hover .gallery-img-wrap video { transform: scale(1.04); }
+
+  .gallery-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 40%, transparent 70%);
+    opacity: 0; transition: opacity 0.25s;
+    display: flex; flex-direction: column;
+    justify-content: flex-end; padding: 10px;
+    gap: 6px;
+  }
+  .gallery-item:hover .gallery-overlay { opacity: 1; }
+
+  .overlay-actions { display: flex; gap: 5px; }
+  .btn-overlay {
+    flex: 1; padding: 6px 4px;
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: var(--radius-sm);
+    color: white; font-size: 10px; font-weight: 600;
+    cursor: pointer; transition: var(--transition);
+    text-align: center;
+    display: flex; align-items: center; justify-content: center; gap: 3px;
+    font-family: 'Inter', sans-serif;
+  }
+  .btn-overlay:hover { background: rgba(124,58,237,0.5); border-color: var(--accent-primary); }
+  .btn-overlay.danger:hover { background: rgba(239,68,68,0.5); border-color: var(--error); }
+
+  .btn-favorite {
+    position: absolute; top: 8px; right: 8px;
+    width: 30px; height: 30px;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 13px;
+    transition: var(--transition); z-index: 5;
+    opacity: 0;
+  }
+  .gallery-item:hover .btn-favorite { opacity: 1; }
+  .btn-favorite.favorited { opacity: 1 !important; background: rgba(245,158,11,0.3); border-color: var(--gold); }
+
+  .select-checkbox {
+    position: absolute; top: 8px; left: 8px;
+    width: 20px; height: 20px;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 4px;
+    display: none; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 11px; z-index: 5; transition: var(--transition);
+  }
+  .batch-mode .select-checkbox { display: flex; }
+  .gallery-item.selected .select-checkbox { background: var(--accent-primary); border-color: var(--accent-primary); }
+
+  .gallery-info { padding: 9px 11px; border-top: 1px solid var(--border-color); }
+  .gallery-info-prompt {
+    font-size: 10px; color: var(--text-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 5px; line-height: 1.4;
+  }
+  .gallery-info-meta { display: flex; gap: 5px; flex-wrap: wrap; }
+  .meta-tag {
+    background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.2);
+    border-radius: 3px; padding: 1px 5px;
+    font-size: 9px; color: var(--text-muted); font-weight: 500;
+  }
+
+  /* ===== EMPTY STATE ===== */
+  .empty-state {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 80px 20px; text-align: center; gap: 14px;
+    color: var(--text-muted);
+  }
+  .empty-icon {
+    width: 80px; height: 80px;
+    background: var(--bg-glass); border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; margin-bottom: 4px;
+  }
+  .empty-title { font-size: 16px; font-weight: 700; color: var(--text-secondary); }
+  .empty-desc { font-size: 13px; max-width: 280px; line-height: 1.6; }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(8px);
+    z-index: 1000; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.visible { display: flex; }
+  .modal {
+    background: rgba(15,15,28,0.98);
+    border: 1px solid rgba(124,58,237,0.3);
+    border-radius: var(--radius-xl);
+    padding: 28px; width: 100%; max-width: 500px;
+    box-shadow: var(--shadow-card), 0 0 40px rgba(124,58,237,0.15);
+    animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+    to { opacity: 1; transform: none; }
+  }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .btn-close {
+    background: none; border: none; color: var(--text-muted);
+    font-size: 20px; cursor: pointer; width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-sm); transition: var(--transition);
+  }
+  .btn-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .form-group { margin-bottom: 16px; }
+  .form-label {
+    display: block; font-size: 10px; font-weight: 700;
+    color: var(--text-secondary); margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .form-hint { font-size: 10px; color: var(--text-muted); margin-top: 5px; line-height: 1.5; }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+  .btn-primary {
+    padding: 9px 22px; background: var(--accent-gradient-btn);
+    border: none; border-radius: var(--radius-sm); color: white;
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: var(--transition);
+  }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-secondary {
+    padding: 9px 22px; background: var(--bg-glass);
+    border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    color: var(--text-secondary); font-family: 'Inter', sans-serif;
+    font-size: 13px; cursor: pointer; transition: var(--transition);
+  }
+  .btn-secondary:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  .btn-sm {
+    padding: 5px 12px; background: var(--bg-glass);
+    border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    color: var(--text-secondary); font-family: 'Inter', sans-serif;
+    font-size: 11px; cursor: pointer; transition: var(--transition);
+    display: flex; align-items: center; gap: 5px; font-weight: 500;
+  }
+  .btn-sm:hover { background: var(--bg-hover); border-color: var(--accent-primary); color: var(--text-primary); }
+  .btn-sm.danger:hover { border-color: var(--error); color: var(--error); }
+  .btn-sm.active { background: rgba(124,58,237,0.2); border-color: var(--accent-primary); color: var(--accent-secondary); }
+
+  /* ===== LIGHTBOX ===== */
+  .lightbox {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.95);
+    z-index: 2000; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .lightbox.visible { display: flex; }
+  .lightbox-content {
+    position: relative; max-width: 90vw; max-height: 90vh;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .lightbox-content img, .lightbox-content video {
+    max-width: 100%; max-height: 80vh;
+    border-radius: var(--radius-lg); object-fit: contain;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .lightbox-close {
+    position: absolute; top: -14px; right: -14px;
+    width: 36px; height: 36px;
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); font-size: 18px; transition: var(--transition); z-index: 1;
+  }
+  .lightbox-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .lightbox-actions { display: flex; gap: 8px; }
+
+  /* ===== CONTEXT MENU ===== */
+  .context-menu {
+    position: fixed; z-index: 3000;
+    background: rgba(15,15,28,0.98);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(124,58,237,0.3);
+    border-radius: var(--radius-md);
+    padding: 6px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    min-width: 180px;
+    display: none;
+    animation: contextIn 0.15s ease;
+  }
+  .context-menu.visible { display: block; }
+  @keyframes contextIn {
+    from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+    to { opacity: 1; transform: none; }
+  }
+  .ctx-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 12px; color: var(--text-secondary);
+    transition: var(--transition); font-weight: 500;
+  }
+  .ctx-item:hover { background: rgba(124,58,237,0.15); color: var(--text-primary); }
+  .ctx-item.danger:hover { background: rgba(239,68,68,0.15); color: var(--error); }
+  .ctx-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
+
+  /* ===== TAB PANELS ===== */
+  .tab-panel { display: none; height: 100%; }
+  .tab-panel.active { display: flex; }
+
+  /* ===== TOAST ===== */
+  .toast-container {
+    position: fixed; bottom: 20px; right: 20px;
+    z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+  }
+  .toast {
+    background: rgba(15,15,28,0.97);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md); padding: 12px 16px;
+    font-size: 12px; color: var(--text-primary);
+    box-shadow: var(--shadow-card);
+    display: flex; align-items: center; gap: 8px;
+    animation: toastIn 0.3s ease; min-width: 220px; max-width: 320px;
+    font-weight: 500;
+  }
+  .toast.success { border-color: rgba(16,185,129,0.4); }
+  .toast.error { border-color: rgba(239,68,68,0.4); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+  @keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
+
+  /* ===== MISC ===== */
+  .inline-warning {
+    background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
+    border-radius: var(--radius-sm); padding: 8px 10px;
+    font-size: 10px; color: #fcd34d; line-height: 1.5;
+    display: flex; align-items: flex-start; gap: 6px; margin-top: 6px;
+  }
+  [data-tooltip] { position: relative; }
+  [data-tooltip]::after {
+    content: attr(data-tooltip); position: absolute;
+    bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: rgba(15,15,28,0.98); border: 1px solid var(--border-color);
+    border-radius: 4px; padding: 4px 8px; font-size: 10px;
+    white-space: nowrap; opacity: 0; pointer-events: none;
+    transition: opacity 0.15s; z-index: 100; color: var(--text-secondary);
+  }
+  [data-tooltip]:hover::after { opacity: 1; }
+
+  #video-sidebar-extras { display: none; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">✦</div>
+    <span class="logo-text">AI Generator</span>
+    <span class="pro-badge">PRO</span>
+  </div>
+  <div class="header-right">
+    <div class="header-badge" id="connection-badge">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Nicht verbunden</span>
+    </div>
+    <button class="btn-icon" id="btn-test-conn" data-tooltip="Verbindung testen">⟳</button>
+    <button class="btn-icon" id="btn-settings" data-tooltip="Einstellungen">⚙</button>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="tabs-bar">
+  <button class="tab-btn active" data-tab="images" onclick="switchTab('images')">🖼 Bilder</button>
+  <button class="tab-btn" data-tab="videos" onclick="switchTab('videos')">🎬 Videos</button>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="main-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- MODELL -->
+    <div class="sidebar-section">
+      <div class="section-header" onclick="toggleSection('sec-model')">
+        <div class="section-label">Modell / Stil</div>
+        <span class="section-toggle" id="toggle-sec-model">▼</span>
+      </div>
+      <div class="section-body" id="body-sec-model">
+        <div class="preset-grid" style="margin-bottom:10px">
+          <button class="preset-btn active" data-preset="realistic" onclick="selectPreset(this,'realistic')">
+            <span class="preset-icon">📷</span>Realistisch
+          </button>
+          <button class="preset-btn" data-preset="anime" onclick="selectPreset(this,'anime')">
+            <span class="preset-icon">🌸</span>Anime
+          </button>
+          <button class="preset-btn" data-preset="artistic" onclick="selectPreset(this,'artistic')">
+            <span class="preset-icon">🎨</span>Artistisch
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAGS -->
+    <div class="sidebar-section">
+      <div class="section-header" onclick="toggleSection('sec-tags')">
+        <div class="section-label">Schnell-Tags</div>
+        <span class="section-toggle" id="toggle-sec-tags">▼</span>
+      </div>
+      <div class="section-body" id="body-sec-tags">
+
+        <div class="tag-group">
+          <div class="tag-group-label">💇 Haarfarbe</div>
+          <div class="tags-wrap">
+            <span class="tag-chip" data-tag="blonde hair" onclick="toggleTag(this)">Blond</span>
+            <span class="tag-chip" data-tag="brunette hair" onclick="toggleTag(this)">Braun</span>
+            <span class="tag-chip" data-tag="red hair" onclick="toggleTag(this)">Rot</span>
+            <span class="tag-chip" data-tag="black hair" onclick="toggleTag(this)">Schwarz</span>
+            <span class="tag-chip" data-tag="white hair" onclick="toggleTag(this)">Weiß</span>
+            <span class="tag-chip" data-tag="pink hair" onclick="toggleTag(this)">Pink</span>
+          </div>
+        </div>
+
+        <div class="tag-group">
+          <div class="tag-group-label">👁 Augen</div>
+          <div class="tags-wrap">
+            <span class="tag-chip" data-tag="blue eyes" onclick="toggleTag(this)">Blau</span>
+            <span class="tag-chip" data-tag="green eyes" onclick="toggleTag(this)">Grün</span>
+            <span class="tag-chip" data-tag="brown eyes" onclick="toggleTag(this)">Braun</span>
+            <span class="tag-chip" data-tag="hazel eyes" onclick="toggleTag(this)">Haselnuss</span>
+          </div>
+        </div>
+
+        <div class="tag-group">
+          <div class="tag-group-label">💃 Körper</div>
+          <div class="tags-wrap">
+            <span class="tag-chip" data-tag="slim body" onclick="toggleTag(this)">Schlank</span>
+            <span class="tag-chip" data-tag="curvy body" onclick="toggleTag(this)">Kurvig</span>
+            <span class="tag-chip" data-tag="athletic body" onclick="toggleTag(this)">Athletisch</span>
+            <span class="tag-chip" data-tag="petite" onclick="toggleTag(this)">Zierlich</span>
+            <span class="tag-chip" data-tag="busty, big breasts" onclick="toggleTag(this)">Vollbusig</span>
+            <span class="tag-chip" data-tag="small breasts" onclick="toggleTag(this)">Kleine Brüste</span>
+            <span class="tag-chip" data-tag="big ass, round ass" onclick="toggleTag(this)">Großer Po</span>
+            <span class="tag-chip" data-tag="thick thighs" onclick="toggleTag(this)">Dicke Schenkel</span>
+            <span class="tag-chip" data-tag="long legs" onclick="toggleTag(this)">Lange Beine</span>
+            <span class="tag-chip" data-tag="BBW" onclick="toggleTag(this)">BBW</span>
+          </div>
+        </div>
+
+        <div class="tag-group">
+          <div class="tag-group-label">🌍 Ethnizität</div>
+          <div class="tags-wrap">
+            <span class="tag-chip" data-tag="european woman" onclick="toggleTag(this)">Europäerin</span>
+            <span class="tag-chip" data-tag="asian woman" onclick="toggleTag(this)">Asiatin</span>
+            <span class="tag-chip" data-tag="latina woman" onclick="toggleTag(this)">Latina</span>
+            <span class="tag-chip" data-tag="ebony woman" onclick="toggleTag(this)">Ebony</span>
+            <span class="tag-chip" data-tag="middle eastern woman" onclick="toggleTag(this)">Orient</span>
+          </div>
+        </div>
+
+        <div class="tag-group">
+          <div class="tag-group-label">🎂 Alter</div>
+          <div class="tags-wrap">
+            <span class="tag-chip" data-tag="18 year old woman" onclick="toggleTag(this)">18+</span>
+            <span class="tag-chip" data-tag="20 year old woman" onclick="toggleTag(this)">20er</span>
+            <span class="tag-chip" data-tag="30 year old woman" onclick="toggleTag(this)">30er</span>
+            <span class="tag-chip" data-tag="MILF, mature woman" onclick="toggleTag(this)">MILF</span>
+          </div>
+        </div>
+
+        <div class="tag-group">
+          <div class="tag-group-label">👄 Gesicht</div>
+          <div class="tags-wrap">
+            <span class="tag-chip" data-tag="full lips" onclick="toggleTag(this)">Volle Lippen</span>
+            <span class="tag-chip" data-tag="freckles" onclick="toggleTag(this)">Sommersprossen</span>
+            <span class="tag-chip" data-tag="sultry expression" onclick="toggleTag(this)">Verführerisch</span>
+            <span class="tag-chip" data-tag="innocent face" onclick="toggleTag(this)">Unschuldig</span>
+            <span class="tag-chip" data-tag="high cheekbones" onclick="toggleTag(this)">Wangenknochen</span>
+          </div>
+        </div>
+
+        <div class="tag-group">
+          <div class="tag-group-label">👗 Outfit</div>
+          <div class="tags-wrap">
+            <span class="tag-chip" data-tag="wearing lingerie" onclick="toggleTag(this)">Lingerie</span>
+            <span class="tag-chip" data-tag="wearing stockings" onclick="toggleTag(this)">Strümpfe</span>
+            <span class="tag-chip" data-tag="topless" onclick="toggleTag(this)">Oben ohne</span>
+            <span class="tag-chip" data-tag="nude, naked" onclick="toggleTag(this)">Nackt</span>
+            <span class="tag-chip" data-tag="fishnet stockings" onclick="toggleTag(this)">Fischnetz</span>
+            <span class="tag-chip" data-tag="latex outfit" onclick="toggleTag(this)">Latex</span>
+            <span class="tag-chip" data-tag="high heels" onclick="toggleTag(this)">High Heels</span>
+          </div>
+        </div>
+
+        <div class="tag-group">
+          <div class="tag-group-label">🔥 Pose / Action</div>
+          <div class="tags-wrap">
+            <span class="tag-chip" data-tag="standing pose" onclick="toggleTag(this)">Stehend</span>
+            <span class="tag-chip" data-tag="lying on bed" onclick="toggleTag(this)">Liegend</span>
+            <span class="tag-chip" data-tag="sitting" onclick="toggleTag(this)">Sitzend</span>
+            <span class="tag-chip" data-tag="on all fours" onclick="toggleTag(this)">Auf allen Vieren</span>
+            <span class="tag-chip" data-tag="spreading legs" onclick="toggleTag(this)">Beine spreizen</span>
+            <span class="tag-chip" data-tag="touching herself" onclick="toggleTag(this)">Sich berühren</span>
+            <span class="tag-chip" data-tag="masturbating" onclick="toggleTag(this)">Masturbierend</span>
+          </div>
+        </div>
+
+        <div class="tag-group">
+          <div class="tag-group-label">📍 Szene</div>
+          <div class="tags-wrap">
+            <span class="tag-chip" data-tag="bedroom" onclick="toggleTag(this)">Schlafzimmer</span>
+            <span class="tag-chip" data-tag="bathroom" onclick="toggleTag(this)">Badezimmer</span>
+            <span class="tag-chip" data-tag="swimming pool" onclick="toggleTag(this)">Pool</span>
+            <span class="tag-chip" data-tag="outdoor nature" onclick="toggleTag(this)">Outdoor</span>
+            <span class="tag-chip" data-tag="studio" onclick="toggleTag(this)">Studio</span>
+            <span class="tag-chip" data-tag="office" onclick="toggleTag(this)">Büro</span>
+          </div>
+        </div>
+
+        <div class="tag-group">
+          <div class="tag-group-label">✨ Bildqualität</div>
+          <div class="tags-wrap">
+            <span class="tag-chip" data-tag="photorealistic, 8k, ultra detailed" onclick="toggleTag(this)">8K Realistisch</span>
+            <span class="tag-chip" data-tag="cinematic lighting" onclick="toggleTag(this)">Cinematisch</span>
+            <span class="tag-chip" data-tag="soft lighting" onclick="toggleTag(this)">Weiches Licht</span>
+            <span class="tag-chip" data-tag="bokeh background" onclick="toggleTag(this)">Bokeh</span>
+            <span class="tag-chip" data-tag="golden hour lighting" onclick="toggleTag(this)">Golden Hour</span>
+            <span class="tag-chip" data-tag="professional photography" onclick="toggleTag(this)">Prof. Foto</span>
+          </div>
+        </div>
+
+        <div style="height:6px"></div>
+      </div>
+    </div>
+
+    <!-- TEMPLATES -->
+    <div class="sidebar-section">
+      <div class="section-header" onclick="toggleSection('sec-tpl')">
+        <div class="section-label">Prompt-Vorlagen</div>
+        <span class="section-toggle" id="toggle-sec-tpl">▼</span>
+      </div>
+      <div class="section-body" id="body-sec-tpl">
+        <div class="templates-scroll" style="margin-bottom:10px">
+          <div class="template-card" onclick="loadTemplate('outdoor')"><span class="t-icon">🌅</span><div class="t-name">Outdoor Sonnenuntergang</div></div>
+          <div class="template-card" onclick="loadTemplate('studio')"><span class="t-icon">📸</span><div class="t-name">Studio Glamour</div></div>
+          <div class="template-card" onclick="loadTemplate('bedroom')"><span class="t-icon">🛏</span><div class="t-name">Bedroom Scene</div></div>
+          <div class="template-card" onclick="loadTemplate('pool')"><span class="t-icon">🏊</span><div class="t-name">Pool Party</div></div>
+          <div class="template-card" onclick="loadTemplate('milf')"><span class="t-icon">💼</span><div class="t-name">Office MILF</div></div>
+          <div class="template-card" onclick="loadTemplate('asian')"><span class="t-icon">🌸</span><div class="t-name">Asian Beauty</div></div>
+          <div class="template-card" onclick="loadTemplate('latina')"><span class="t-icon">💃</span><div class="t-name">Latina Goddess</div></div>
+          <div class="template-card" onclick="loadTemplate('fitness')"><span class="t-icon">💪</span><div class="t-name">Fitness Model</div></div>
+          <div class="template-card" onclick="loadTemplate('lingerie')"><span class="t-icon">🌹</span><div class="t-name">Lingerie Model</div></div>
+          <div class="template-card" onclick="loadTemplate('anime')"><span class="t-icon">🎌</span><div class="t-name">Anime Girl</div></div>
+          <div class="template-card" onclick="loadTemplate('bbw')"><span class="t-icon">👑</span><div class="t-name">BBW Queen</div></div>
+          <div class="template-card" onclick="loadTemplate('shower')"><span class="t-icon">🚿</span><div class="t-name">Shower Scene</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROMPT -->
+    <div class="sidebar-section">
+      <div class="section-header" onclick="toggleSection('sec-prompt')">
+        <div class="section-label">Prompt</div>
+        <span class="section-toggle" id="toggle-sec-prompt">▼</span>
+      </div>
+      <div class="section-body" id="body-sec-prompt">
+        <textarea class="prompt-area" id="main-prompt" rows="4" placeholder="Beschreibe dein Bild... z.B. beautiful woman, blonde hair, lingerie, bedroom, soft lighting"></textarea>
+        <div class="prompt-footer">
+          <span class="char-count" id="prompt-chars">0 Zeichen</span>
+          <button class="btn-clear-prompt" onclick="clearPrompt()">✕ Leeren</button>
+        </div>
+        <div style="margin-top:8px">
+          <div class="section-label" style="margin-bottom:6px">Negativ-Prompt</div>
+          <textarea class="prompt-area" id="neg-prompt" rows="2" placeholder="Was vermieden werden soll...">ugly, deformed, bad anatomy, blurry, low quality, watermark, text, extra limbs</textarea>
+        </div>
+        <div style="height:8px"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="sidebar-section">
+      <div class="section-header" onclick="toggleSection('sec-settings')">
+        <div class="section-label">Einstellungen</div>
+        <span class="section-toggle" id="toggle-sec-settings">▼</span>
+      </div>
+      <div class="section-body" id="body-sec-settings">
+        <div class="control-row">
+          <span class="control-label">Schritte</span>
+          <div class="slider-wrap"><input type="range" id="steps-slider" min="20" max="50" value="30" oninput="updateSlider(this,'steps-val')"></div>
+          <span class="control-value" id="steps-val">30</span>
+        </div>
+        <div class="control-row">
+          <span class="control-label">CFG Scale</span>
+          <div class="slider-wrap"><input type="range" id="cfg-slider" min="5" max="12" step="0.5" value="7" oninput="updateSlider(this,'cfg-val')"></div>
+          <span class="control-value" id="cfg-val">7</span>
+        </div>
+        <div class="control-row">
+          <span class="control-label">Seed</span>
+          <div class="slider-wrap"><input type="number" class="form-input" id="seed-input" placeholder="Zufällig" min="-1" style="padding:5px 8px;font-size:11px;width:100%"></div>
+          <button class="btn-sm" onclick="randomSeed()" style="margin-left:6px;flex-shrink:0;padding:4px 7px">🎲</button>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div class="control-label" style="margin-bottom:7px;width:auto">Auflösung</div>
+          <div class="resolution-grid">
+            <button class="res-btn active" data-res="512x512" onclick="selectRes(this,'512x512')">512×512</button>
+            <button class="res-btn" data-res="768x768" onclick="selectRes(this,'768x768')">768×768</button>
+            <button class="res-btn" data-res="512x768" onclick="selectRes(this,'512x768')">512×768</button>
+            <button class="res-btn" data-res="768x512" onclick="selectRes(this,'768x512')">768×512</button>
+            <button class="res-btn" data-res="1024x1024" onclick="selectRes(this,'1024x1024')">1024×1024</button>
+            <button class="res-btn" data-res="1024x768" onclick="selectRes(this,'1024x768')">1024×768</button>
+          </div>
+        </div>
+        <div style="height:6px"></div>
+      </div>
+    </div>
+
+    <!-- VIDEO EXTRAS -->
+    <div class="sidebar-section" id="video-sidebar-extras">
+      <div class="section-header" onclick="toggleSection('sec-video')">
+        <div class="section-label">Video-Einstellungen</div>
+        <span class="section-toggle" id="toggle-sec-video">▼</span>
+      </div>
+      <div class="section-body" id="body-sec-video">
+        <div style="margin-bottom:10px;">
+          <div class="control-label" style="margin-bottom:7px;width:auto">Dauer</div>
+          <div class="duration-grid">
+            <button class="dur-btn active" data-dur="3" onclick="selectDur(this,'3')">3 Sek.</button>
+            <button class="dur-btn" data-dur="5" onclick="selectDur(this,'5')">5 Sek.</button>
+            <button class="dur-btn" data-dur="10" onclick="selectDur(this,'10')">10 Sek.</button>
+          </div>
+        </div>
+        <div class="control-row">
+          <span class="control-label">Bewegung</span>
+          <div class="slider-wrap"><input type="range" id="motion-slider" min="1" max="10" value="5" oninput="updateSlider(this,'motion-val')"></div>
+          <span class="control-value" id="motion-val">5</span>
+        </div>
+        <div class="inline-warning">⚠ AnimateDiff muss in ComfyUI installiert sein.</div>
+        <div style="height:6px"></div>
+      </div>
+    </div>
+
+    <!-- GENERATE BUTTON -->
+    <div class="generate-wrap">
+      <button class="btn-generate" id="btn-generate" onclick="startGeneration()">
+        <span id="btn-generate-icon">✦</span>
+        <span id="btn-generate-text">Generieren</span>
+      </button>
+      <div style="text-align:center;font-size:10px;color:var(--text-muted);margin-top:6px">Ctrl+Enter</div>
+    </div>
+
+  </aside>
+
+  <!-- IMAGES PANEL -->
+  <div class="tab-panel active" id="panel-images" style="flex-direction:column;overflow:hidden;">
+    <div class="main-content" id="content-images">
+      <div id="progress-images" class="progress-container">
+        <div class="progress-card">
+          <div class="progress-header">
+            <div class="progress-title"><div class="pulse-dot"></div><span id="progress-label-images">Generierung läuft...</span></div>
+            <span class="progress-status" id="progress-status-images">Warte auf Server...</span>
+          </div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill-images"></div></div>
+          <div class="progress-steps">
+            <span class="step-badge" id="step-queue">In Warteschlange</span>
+            <span class="step-badge" id="step-sampling">Sampling</span>
+            <span class="step-badge" id="step-decode">Dekodierung</span>
+            <span class="step-badge" id="step-done">Fertig ✓</span>
+          </div>
+        </div>
+      </div>
+      <div id="error-images" class="message-box error"><span class="message-icon">⚠</span><span id="error-text-images"></span></div>
+      <div id="success-images" class="message-box success"><span class="message-icon">✓</span><span id="success-text-images"></span></div>
+
+      <div class="gallery-header">
+        <div class="gallery-top-row">
+          <div class="gallery-title">🖼 Galerie <span class="gallery-count" id="gallery-count-images">0</span></div>
+          <div class="gallery-actions">
+            <button class="btn-sm" id="btn-batch-images" onclick="toggleBatchMode('images')">☐ Auswahl</button>
+            <button class="btn-sm" id="btn-batch-dl-images" style="display:none" onclick="batchDownload('images')">⬇ Herunterladen</button>
+            <button class="btn-sm danger" onclick="clearGallery('images')">🗑 Leeren</button>
+          </div>
+        </div>
+        <div class="gallery-filter-row">
+          <div class="filter-tabs">
+            <button class="filter-tab active" data-filter="all" onclick="setFilter('images','all',this)">Alle</button>
+            <button class="filter-tab" data-filter="favorites" onclick="setFilter('images','favorites',this)">⭐ Favoriten</button>
+          </div>
+          <select class="sort-select" onchange="setSort('images',this.value)">
+            <option value="newest">Neueste</option>
+            <option value="oldest">Älteste</option>
+            <option value="favorites">Favoriten zuerst</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="gallery-images" class="gallery-grid">
+        <div class="empty-state" id="empty-images" style="column-span:all">
+          <div class="empty-icon">🖼</div>
+          <div class="empty-title">Noch keine Bilder</div>
+          <div class="empty-desc">Wähle einen Stil, gib deinen Prompt ein und klicke auf "Generieren" um loszulegen.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIDEOS PANEL -->
+  <div class="tab-panel" id="panel-videos" style="flex-direction:column;overflow:hidden;">
+    <div class="main-content" id="content-videos">
+      <div id="progress-videos" class="progress-container">
+        <div class="progress-card">
+          <div class="progress-header">
+            <div class="progress-title"><div class="pulse-dot"></div><span id="progress-label-videos">Video wird generiert...</span></div>
+            <span class="progress-status" id="progress-status-videos">Warte auf Server...</span>
+          </div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill-videos"></div></div>
+          <div class="progress-steps">
+            <span class="step-badge" id="vstep-queue">In Warteschlange</span>
+            <span class="step-badge" id="vstep-sampling">Frame-Sampling</span>
+            <span class="step-badge" id="vstep-decode">Rendering</span>
+            <span class="step-badge" id="vstep-done">Fertig ✓</span>
+          </div>
+        </div>
+      </div>
+      <div id="error-videos" class="message-box error"><span class="message-icon">⚠</span><span id="error-text-videos"></span></div>
+      <div id="success-videos" class="message-box success"><span class="message-icon">✓</span><span id="success-text-videos"></span></div>
+
+      <div class="gallery-header">
+        <div class="gallery-top-row">
+          <div class="gallery-title">🎬 Video-Galerie <span class="gallery-count" id="gallery-count-videos">0</span></div>
+          <div class="gallery-actions">
+            <button class="btn-sm" id="btn-batch-videos" onclick="toggleBatchMode('videos')">☐ Auswahl</button>
+            <button class="btn-sm" id="btn-batch-dl-videos" style="display:none" onclick="batchDownload('videos')">⬇ Herunterladen</button>
+            <button class="btn-sm danger" onclick="clearGallery('videos')">🗑 Leeren</button>
+          </div>
+        </div>
+        <div class="gallery-filter-row">
+          <div class="filter-tabs">
+            <button class="filter-tab active" data-filter="all" onclick="setFilter('videos','all',this)">Alle</button>
+            <button class="filter-tab" data-filter="favorites" onclick="setFilter('videos','favorites',this)">⭐ Favoriten</button>
+          </div>
+          <select class="sort-select" onchange="setSort('videos',this.value)">
+            <option value="newest">Neueste</option>
+            <option value="oldest">Älteste</option>
+            <option value="favorites">Favoriten zuerst</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="gallery-videos" class="gallery-grid">
+        <div class="empty-state" id="empty-videos" style="column-span:all">
+          <div class="empty-icon">🎬</div>
+          <div class="empty-title">Noch keine Videos</div>
+          <div class="empty-desc">Gib deinen Prompt ein und starte die Video-Generierung mit AnimateDiff.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main-layout -->
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">⚙ Einstellungen</h2>
+      <button class="btn-close" onclick="closeModal('settings-modal')">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ComfyUI API URL</label>
+      <input type="text" class="form-input" id="api-url-input" value="http://127.0.0.1:8188">
+      <div class="form-hint">Standard: http://127.0.0.1:8188</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Checkpoint-Modell (Dateiname)</label>
+      <input type="text" class="form-input" id="checkpoint-input" value="v1-5-pruned-emaonly.ckpt" placeholder="z.B. epiCRealism.safetensors">
+      <div class="form-hint">Exakter Dateiname in /models/checkpoints/</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">AnimateDiff Modell (für Videos)</label>
+      <input type="text" class="form-input" id="animatediff-input" value="mm_sd_v15_v2.ckpt">
+      <div class="form-hint">Liegt in /models/animatediff_models/</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Sampler</label>
+      <select class="form-input" id="sampler-select">
+        <option value="euler">Euler</option>
+        <option value="euler_ancestral" selected>Euler Ancestral</option>
+        <option value="dpmpp_2m">DPM++ 2M</option>
+        <option value="dpmpp_2m_karras">DPM++ 2M Karras</option>
+        <option value="dpmpp_sde">DPM++ SDE</option>
+        <option value="ddim">DDIM</option>
+        <option value="uni_pc">UniPC</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Scheduler</label>
+      <select class="form-input" id="scheduler-select">
+        <option value="normal" selected>Normal</option>
+        <option value="karras">Karras</option>
+        <option value="exponential">Exponential</option>
+        <option value="ddim_uniform">DDIM Uniform</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('settings-modal')">Abbrechen</button>
+      <button class="btn-primary" onclick="saveSettings()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <div class="lightbox-content" id="lightbox-content">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    <img id="lightbox-img" src="" alt="" style="display:none">
+    <video id="lightbox-video" controls style="display:none"></video>
+    <div class="lightbox-actions">
+      <button class="btn-overlay" onclick="downloadLightbox()" style="flex:none;padding:7px 18px">⬇ Herunterladen</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div class="context-menu" id="context-menu">
+  <div class="ctx-item" onclick="ctxAction('lightbox')">🔍 Vollbild ansehen</div>
+  <div class="ctx-item" onclick="ctxAction('download')">⬇ Herunterladen</div>
+  <div class="ctx-item" onclick="ctxAction('favorite')">⭐ Favorit umschalten</div>
+  <div class="ctx-item" onclick="ctxAction('copyPrompt')">📋 Prompt kopieren</div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-item danger" onclick="ctxAction('delete')">🗑 Löschen</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ===== STATE =====
+const state = {
+  tab: 'images',
+  preset: 'realistic',
+  resolution: '512x512',
+  duration: '3',
+  activeTags: new Set(),
+  generating: false,
+  apiUrl: 'http://127.0.0.1:8188',
+  checkpoint: 'v1-5-pruned-emaonly.ckpt',
+  animateDiff: 'mm_sd_v15_v2.ckpt',
+  sampler: 'euler_ancestral',
+  scheduler: 'normal',
+  pollInterval: null,
+  lightboxSrc: '',
+  lightboxType: 'image',
+  batchMode: { images: false, videos: false },
+  selectedItems: { images: new Set(), videos: new Set() },
+  filter: { images: 'all', videos: 'all' },
+  sort: { images: 'newest', videos: 'newest' },
+  ctxTarget: null,
+};
+
+const galleries = { images: [], videos: [] };
+
+// ===== TEMPLATES =====
+const TEMPLATES = {
+  outdoor: {
+    positive: 'beautiful woman, outdoor, golden hour, sunset, nature background, warm lighting, photorealistic, 8k, ultra detailed, bokeh background',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+  studio: {
+    positive: 'beautiful woman, professional studio photography, glamour shot, perfect lighting, high fashion, magazine quality, photorealistic, 8k',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+  bedroom: {
+    positive: 'beautiful woman, bedroom, lingerie, intimate atmosphere, soft lighting, silky sheets, sensual, photorealistic, 8k, ultra detailed',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+  pool: {
+    positive: 'beautiful woman, swimming pool, wet skin, summer, luxury villa, bikini, sunshine, photorealistic, 8k, ultra detailed',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+  milf: {
+    positive: 'beautiful mature woman, 35 years old, office setting, professional attire, MILF, confident, photorealistic, 8k, ultra detailed',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+  asian: {
+    positive: 'beautiful asian woman, soft skin, dark hair, elegant, natural lighting, photorealistic, 8k, ultra detailed, high quality',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+  latina: {
+    positive: 'beautiful latina woman, curvy body, tan skin, dark hair, confident pose, photorealistic, 8k, ultra detailed, vibrant',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+  fitness: {
+    positive: 'beautiful athletic woman, gym setting, fit body, workout clothes, toned muscles, sports bra, photorealistic, 8k, ultra detailed',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+  lingerie: {
+    positive: 'beautiful woman, luxury lingerie, lace, elegant pose, soft lighting, bedroom, sensual, photorealistic, 8k, ultra detailed, high fashion',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+  anime: {
+    positive: 'beautiful anime girl, manga style, vibrant colors, big eyes, detailed outfit, cel shading, masterpiece, best quality',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, realistic'
+  },
+  bbw: {
+    positive: 'beautiful plus size woman, BBW, confident, curves, elegant, soft lighting, photorealistic, 8k, ultra detailed',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+  shower: {
+    positive: 'beautiful woman, shower, wet hair, water drops on skin, steam, bathroom, sensual, photorealistic, 8k, ultra detailed',
+    negative: 'ugly, deformed, bad anatomy, blurry, low quality, watermark'
+  },
+};
+
+function loadTemplate(key) {
+  const tpl = TEMPLATES[key];
+  if (!tpl) return;
+  document.getElementById('main-prompt').value = tpl.positive;
+  document.getElementById('neg-prompt').value = tpl.negative;
+  document.querySelectorAll('.tag-chip').forEach(c => c.classList.remove('active'));
+  state.activeTags.clear();
+  updateCharCount();
+  showToast('Vorlage geladen!', 'success');
+}
+
+// ===== COLLAPSIBLE SECTIONS =====
+function toggleSection(id) {
+  const body = document.getElementById('body-' + id);
+  const toggle = document.getElementById('toggle-' + id);
+  const isCollapsed = body.classList.contains('collapsed');
+  if (isCollapsed) {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    body.classList.remove('collapsed');
+    toggle.classList.remove('collapsed');
+  } else {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    requestAnimationFrame(() => {
+      body.classList.add('collapsed');
+      toggle.classList.add('collapsed');
+    });
+  }
+}
+
+// Init all section heights
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.section-body').forEach(b => {
+    b.style.maxHeight = b.scrollHeight + 'px';
+  });
+  loadFromStorage();
+  loadSettings();
+  renderGallery('images');
+  renderGallery('videos');
+  testConnection();
+
+  document.getElementById('main-prompt').addEventListener('input', updateCharCount);
+  document.getElementById('btn-settings').addEventListener('click', () => openModal('settings-modal'));
+  document.getElementById('btn-test-conn').addEventListener('click', () => testConnection(true));
+  updateCharCount();
+
+  // Close context menu on click outside
+  document.addEventListener('click', () => hideContextMenu());
+});
+
+// ===== TAB SWITCHING =====
+function switchTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
+  document.getElementById('video-sidebar-extras').style.display = tab === 'videos' ? 'block' : 'none';
+  document.getElementById('btn-generate-text').textContent = tab === 'videos' ? 'Video generieren' : 'Generieren';
+}
+
+// ===== PRESETS =====
+function selectPreset(el, preset) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  state.preset = preset;
+  showToast(`Stil: ${preset === 'realistic' ? 'Realistisch' : preset === 'anime' ? 'Anime' : 'Artistisch'}`, 'info');
+}
+
+// ===== TAGS =====
+function toggleTag(el) {
+  const tag = el.dataset.tag;
+  const prompt = document.getElementById('main-prompt');
+  if (el.classList.contains('active')) {
+    el.classList.remove('active');
+    state.activeTags.delete(tag);
+    const regex = new RegExp('(,\\s*)?' + tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(,\\s*)?', 'g');
+    prompt.value = prompt.value.replace(regex, (m, b, a) => (b && a) ? ', ' : '').replace(/^,\s*/, '').replace(/,\s*$/, '').trim();
+  } else {
+    el.classList.add('active');
+    state.activeTags.add(tag);
+    const cur = prompt.value.trim();
+    prompt.value = cur ? cur + ', ' + tag : tag;
+  }
+  updateCharCount();
+}
+
+function clearPrompt() {
+  document.getElementById('main-prompt').value = '';
+  document.querySelectorAll('.tag-chip').forEach(c => c.classList.remove('active'));
+  state.activeTags.clear();
+  updateCharCount();
+}
+
+// ===== CONTROLS =====
+function selectRes(el, res) {
+  document.querySelectorAll('.res-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  state.resolution = res;
+}
+function selectDur(el, dur) {
+  document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  state.duration = dur;
+}
+function updateSlider(el, valId) { document.getElementById(valId).textContent = el.value; }
+function randomSeed() { document.getElementById('seed-input').value = Math.floor(Math.random() * 9999999999); }
+function updateCharCount() {
+  document.getElementById('prompt-chars').textContent = document.getElementById('main-prompt').value.length + ' Zeichen';
+}
+
+// ===== SETTINGS =====
+function loadSettings() {
+  const s = JSON.parse(localStorage.getItem('ai-gen-settings') || '{}');
+  if (s.apiUrl) state.apiUrl = s.apiUrl;
+  if (s.checkpoint) state.checkpoint = s.checkpoint;
+  if (s.animateDiff) state.animateDiff = s.animateDiff;
+  if (s.sampler) state.sampler = s.sampler;
+  if (s.scheduler) state.scheduler = s.scheduler;
+  document.getElementById('api-url-input').value = state.apiUrl;
+  document.getElementById('checkpoint-input').value = state.checkpoint;
+  document.getElementById('animatediff-input').value = state.animateDiff;
+  document.getElementById('sampler-select').value = state.sampler;
+  document.getElementById('scheduler-select').value = state.scheduler;
+}
+function saveSettings() {
+  state.apiUrl = document.getElementById('api-url-input').value.trim().replace(/\/$/, '');
+  state.checkpoint = document.getElementById('checkpoint-input').value.trim();
+  state.animateDiff = document.getElementById('animatediff-input').value.trim();
+  state.sampler = document.getElementById('sampler-select').value;
+  state.scheduler = document.getElementById('scheduler-select').value;
+  localStorage.setItem('ai-gen-settings', JSON.stringify({ apiUrl: state.apiUrl, checkpoint: state.checkpoint, animateDiff: state.animateDiff, sampler: state.sampler, scheduler: state.scheduler }));
+  closeModal('settings-modal');
+  showToast('Einstellungen gespeichert!', 'success');
+  testConnection(true);
+}
+
+// ===== GALLERY STORAGE =====
+function loadFromStorage() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('ai-gen-gallery') || '{"images":[],"videos":[]}');
+    galleries.images = saved.images || [];
+    galleries.videos = saved.videos || [];
+  } catch(e) { galleries.images = []; galleries.videos = []; }
+}
+function saveToStorage() {
+  try {
+    localStorage.setItem('ai-gen-gallery', JSON.stringify(galleries));
+  } catch(e) {
+    if (galleries.images.length > 10) galleries.images = galleries.images.slice(-10);
+    if (galleries.videos.length > 5) galleries.videos = galleries.videos.slice(-5);
+    try { localStorage.setItem('ai-gen-gallery', JSON.stringify(galleries)); } catch(e2) {}
+  }
+}
+
+// ===== FILTER & SORT =====
+function setFilter(type, filter, el) {
+  state.filter[type] = filter;
+  el.closest('.filter-tabs').querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderGallery(type);
+}
+function setSort(type, sort) {
+  state.sort[type] = sort;
+  renderGallery(type);
+}
+
+// ===== BATCH MODE =====
+function toggleBatchMode(type) {
+  state.batchMode[type] = !state.batchMode[type];
+  state.selectedItems[type].clear();
+  const btn = document.getElementById('btn-batch-' + type);
+  const dlBtn = document.getElementById('btn-batch-dl-' + type);
+  const grid = document.getElementById('gallery-' + type);
+  btn.classList.toggle('active', state.batchMode[type]);
+  btn.textContent = state.batchMode[type] ? '✕ Abbrechen' : '☐ Auswahl';
+  dlBtn.style.display = state.batchMode[type] ? 'flex' : 'none';
+  grid.classList.toggle('batch-mode', state.batchMode[type]);
+  renderGallery(type);
+}
+
+function toggleSelectItem(type, idx) {
+  if (!state.batchMode[type]) return;
+  const set = state.selectedItems[type];
+  if (set.has(idx)) set.delete(idx);
+  else set.add(idx);
+  renderGallery(type);
+}
+
+function batchDownload(type) {
+  const selected = [...state.selectedItems[type]];
+  if (selected.length === 0) { showToast('Keine Elemente ausgewählt', 'error'); return; }
+  selected.forEach(idx => {
+    const item = galleries[type][idx];
+    if (item) downloadItem(item.url, `ai_gen_${Date.now()}_${idx}`);
+  });
+  showToast(`${selected.length} Datei(en) werden heruntergeladen`, 'success');
+}
+
+// ===== FAVORITES =====
+function toggleFavorite(type, idx, event) {
+  event.stopPropagation();
+  const item = galleries[type][idx];
+  if (!item) return;
+  item.favorite = !item.favorite;
+  saveToStorage();
+  renderGallery(type);
+  showToast(item.favorite ? '⭐ Zu Favoriten hinzugefügt' : 'Aus Favoriten entfernt', 'info');
+}
+
+// ===== CONTEXT MENU =====
+function showContextMenu(e, type, idx) {
+  e.preventDefault();
+  e.stopPropagation();
+  state.ctxTarget = { type, idx };
+  const menu = document.getElementById('context-menu');
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - 200) + 'px';
+  menu.classList.add('visible');
+}
+function hideContextMenu() {
+  document.getElementById('context-menu').classList.remove('visible');
+}
+function ctxAction(action) {
+  hideContextMenu();
+  if (!state.ctxTarget) return;
+  const { type, idx } = state.ctxTarget;
+  const item = galleries[type][idx];
+  if (!item) return;
+  if (action === 'lightbox') openLightbox(item.url, type === 'videos' ? 'video' : 'image');
+  if (action === 'download') downloadItem(item.url, `ai_gen_${Date.now()}`);
+  if (action === 'favorite') { item.favorite = !item.favorite; saveToStorage(); renderGallery(type); showToast(item.favorite ? '⭐ Favorit' : 'Entfernt', 'info'); }
+  if (action === 'copyPrompt') { navigator.clipboard?.writeText(item.prompt || '').then(() => showToast('Prompt kopiert!', 'success')); }
+  if (action === 'delete') { galleries[type].splice(idx, 1); saveToStorage(); renderGallery(type); showToast('Gelöscht', 'info'); }
+}
+
+// ===== RENDER GALLERY =====
+function renderGallery(type) {
+  const container = document.getElementById(`gallery-${type}`);
+  const emptyEl = document.getElementById(`empty-${type}`);
+  const countEl = document.getElementById(`gallery-count-${type}`);
+
+  let items = galleries[type].map((item, idx) => ({ ...item, _idx: idx }));
+
+  // Filter
+  if (state.filter[type] === 'favorites') items = items.filter(i => i.favorite);
+
+  // Sort
+  if (state.sort[type] === 'oldest') items.sort((a, b) => a.ts - b.ts);
+  else if (state.sort[type] === 'favorites') items.sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
+  else items.sort((a, b) => b.ts - a.ts);
+
+  countEl.textContent = items.length;
+
+  Array.from(container.children).forEach(c => { if (!c.id?.startsWith('empty-')) container.removeChild(c); });
+
+  if (items.length === 0) { emptyEl.style.display = 'flex'; return; }
+  emptyEl.style.display = 'none';
+
+  const batchModeOn = state.batchMode[type];
+
+  items.forEach(item => {
+    const idx = item._idx;
+    const isVideo = type === 'videos' || item.url?.match(/\.(mp4|webm|gif)$/i);
+    const isSelected = state.selectedItems[type].has(idx);
+
+    const div = document.createElement('div');
+    div.className = 'gallery-item' + (isSelected ? ' selected' : '') + (batchModeOn ? ' batch-mode' : '');
+    div.dataset.index = idx;
+
+    const mediaEl = isVideo
+      ? `<video src="${item.url}" muted loop preload="metadata" style="width:100%;display:block;aspect-ratio:16/9"></video>`
+      : `<img src="${item.url}" alt="Generated" style="width:100%;display:block" loading="lazy">`;
+
+    div.innerHTML = `
+      <div class="gallery-img-wrap">
+        ${mediaEl}
+        <div class="gallery-overlay">
+          <div class="overlay-actions">
+            <button class="btn-overlay" onclick="openLightbox('${item.url}','${isVideo ? 'video' : 'image'}')">🔍</button>
+            <button class="btn-overlay" onclick="downloadItem('${item.url}','ai_gen_${Date.now()}')">⬇</button>
+          </div>
+        </div>
+        <button class="btn-favorite ${item.favorite ? 'favorited' : ''}" onclick="toggleFavorite('${type}',${idx},event)" title="Favorit">
+          ${item.favorite ? '⭐' : '☆'}
+        </button>
+        <div class="select-checkbox" onclick="toggleSelectItem('${type}',${idx})">${isSelected ? '✓' : ''}</div>
+      </div>
+      <div class="gallery-info">
+        <div class="gallery-info-prompt" title="${escapeHtml(item.prompt || '')}">${escapeHtml(item.prompt || 'Kein Prompt')}</div>
+        <div class="gallery-info-meta">
+          <span class="meta-tag">${item.resolution || '?'}</span>
+          <span class="meta-tag">${item.preset || '?'}</span>
+          ${item.steps ? `<span class="meta-tag">${item.steps}st</span>` : ''}
+          <span class="meta-tag">${new Date(item.ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</span>
+        </div>
+      </div>`;
+
+    div.addEventListener('contextmenu', e => showContextMenu(e, type, idx));
+
+    if (batchModeOn) {
+      div.addEventListener('click', () => toggleSelectItem(type, idx));
+    }
+
+    if (isVideo) {
+      const vid = div.querySelector('video');
+      div.querySelector('.gallery-img-wrap').addEventListener('mouseenter', () => vid.play().catch(() => {}));
+      div.querySelector('.gallery-img-wrap').addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; });
+    }
+
+    container.appendChild(div);
+  });
+}
+
+function clearGallery(type) {
+  if (!confirm(`Alle ${type === 'images' ? 'Bilder' : 'Videos'} löschen?`)) return;
+  galleries[type] = [];
+  saveToStorage();
+  renderGallery(type);
+  showToast('Galerie geleert', 'info');
+}
+
+// ===== CONNECTION =====
+async function testConnection(showResult = false) {
+  const dot = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  try {
+    const r = await fetch(`${state.apiUrl}/system_stats`, { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      dot.className = 'status-dot connected';
+      text.textContent = 'Verbunden';
+      if (showResult) showToast('ComfyUI verbunden ✓', 'success');
+      return true;
+    }
+  } catch(e) {}
+  dot.className = 'status-dot';
+  text.textContent = 'Nicht verbunden';
+  if (showResult) showToast('ComfyUI nicht erreichbar', 'error');
+  return false;
+}
+
+// ===== COMFYUI WORKFLOWS =====
+function buildImageWorkflow() {
+  const [width, height] = state.resolution.split('x').map(Number);
+  const steps = parseInt(document.getElementById('steps-slider').value);
+  const cfg = parseFloat(document.getElementById('cfg-slider').value);
+  const seedVal = document.getElementById('seed-input').value;
+  const seed = seedVal ? parseInt(seedVal) : Math.floor(Math.random() * 9999999999);
+  const positive = document.getElementById('main-prompt').value.trim() || 'beautiful portrait';
+  const negative = document.getElementById('neg-prompt').value.trim();
+  const presetBoost = {
+    realistic: 'photorealistic, RAW photo, 8k, high quality, masterpiece, ',
+    anime: 'anime style, best quality, masterpiece, ',
+    artistic: 'digital art, artstation, concept art, masterpiece, ',
+  };
+  const fullPositive = (presetBoost[state.preset] || '') + positive;
+  return {
+    "3": { "class_type": "KSampler", "inputs": { "model": ["4",0], "positive": ["6",0], "negative": ["7",0], "latent_image": ["5",0], "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": state.sampler, "scheduler": state.scheduler, "denoise": 1.0 }},
+    "4": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": state.checkpoint }},
+    "5": { "class_type": "EmptyLatentImage", "inputs": { "width": width, "height": height, "batch_size": 1 }},
+    "6": { "class_type": "CLIPTextEncode", "inputs": { "text": fullPositive, "clip": ["4",1] }},
+    "7": { "class_type": "CLIPTextEncode", "inputs": { "text": negative, "clip": ["4",1] }},
+    "8": { "class_type": "VAEDecode", "inputs": { "samples": ["3",0], "vae": ["4",2] }},
+    "9": { "class_type": "SaveImage", "inputs": { "images": ["8",0], "filename_prefix": "ai_gen_" }}
+  };
+}
+
+function buildVideoWorkflow() {
+  const [width, height] = state.resolution.split('x').map(Number);
+  const steps = parseInt(document.getElementById('steps-slider').value);
+  const cfg = parseFloat(document.getElementById('cfg-slider').value);
+  const seedVal = document.getElementById('seed-input').value;
+  const seed = seedVal ? parseInt(seedVal) : Math.floor(Math.random() * 9999999999);
+  const positive = document.getElementById('main-prompt').value.trim() || 'beautiful portrait, moving';
+  const negative = document.getElementById('neg-prompt').value.trim();
+  const dur = parseInt(state.duration);
+  const frames = dur === 3 ? 16 : dur === 5 ? 24 : 48;
+  const motionStrength = parseFloat(document.getElementById('motion-slider').value) / 10.0;
+  const presetBoost = { realistic: 'photorealistic, smooth motion, cinematic, ', anime: 'anime style, smooth animation, vibrant, ', artistic: 'artistic, dynamic, smooth motion, ' };
+  const fullPositive = (presetBoost[state.preset] || '') + positive;
+  return {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": state.checkpoint }},
+    "2": { "class_type": "ADE_AnimateDiffUniformContextOptions", "inputs": { "context_length": 16, "context_stride": 1, "context_overlap": 4, "context_schedule": "uniform", "closed_loop": false }},
+    "3": { "class_type": "ADE_LoadAnimateDiffModel", "inputs": { "model_name": state.animateDiff }},
+    "4": { "class_type": "ADE_ApplyAnimateDiffModel", "inputs": { "motion_model": ["3",0], "start_percent": 0.0, "end_percent": 1.0, "motion_scale": motionStrength, "context_options": ["2",0] }},
+    "5": { "class_type": "ADE_UseEvolvedSampling", "inputs": { "model": ["1",0], "motion_model": ["4",0] }},
+    "6": { "class_type": "CLIPTextEncode", "inputs": { "text": fullPositive, "clip": ["1",1] }},
+    "7": { "class_type": "CLIPTextEncode", "inputs": { "text": negative, "clip": ["1",1] }},
+    "8": { "class_type": "EmptyLatentImage", "inputs": { "width": width, "height": height, "batch_size": frames }},
+    "9": { "class_type": "KSampler", "inputs": { "model": ["5",0], "positive": ["6",0], "negative": ["7",0], "latent_image": ["8",0], "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": state.sampler, "scheduler": state.scheduler, "denoise": 1.0 }},
+    "10": { "class_type": "VAEDecode", "inputs": { "samples": ["9",0], "vae": ["1",2] }},
+    "11": { "class_type": "VHS_VideoCombine", "inputs": { "images": ["10",0], "frame_rate": 8, "loop_count": 0, "filename_prefix": "ai_video_", "format": "video/h264-mp4", "pingpong": false, "save_output": true }}
+  };
+}
+
+// ===== GENERATION =====
+async function startGeneration() {
+  if (state.generating) return;
+  const connected = await testConnection();
+  if (!connected) { showError(state.tab, 'ComfyUI ist nicht erreichbar. Stelle sicher dass ComfyUI läuft (http://127.0.0.1:8188) und überprüfe die Einstellungen.'); return; }
+  const prompt = document.getElementById('main-prompt').value.trim();
+  if (!prompt) { showError(state.tab, 'Bitte gib einen Prompt ein bevor du generierst.'); return; }
+
+  state.generating = true;
+  hideMessages(state.tab);
+  setGeneratingState(true);
+  showProgress(state.tab, true);
+  setProgressStep(state.tab, 'queue');
+  setProgressPercent(state.tab, 5);
+  setProgressStatus(state.tab, 'Sende Workflow an ComfyUI...');
+
+  try {
+    const workflow = state.tab === 'videos' ? buildVideoWorkflow() : buildImageWorkflow();
+    const resp = await fetch(`${state.apiUrl}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: workflow, client_id: 'aigenpro_' + Date.now() }),
+    });
+    if (!resp.ok) { const t = await resp.text(); throw new Error(`Server Fehler ${resp.status}: ${t.slice(0,200)}`); }
+    const data = await resp.json();
+    if (data.error) throw new Error('Workflow Fehler: ' + JSON.stringify(data.error));
+    setProgressStatus(state.tab, `ID: ${data.prompt_id.slice(0,8)}...`);
+    setProgressPercent(state.tab, 15);
+    setProgressStep(state.tab, 'sampling');
+    await pollForResult(data.prompt_id);
+  } catch(e) {
+    showError(state.tab, `Fehler: ${e.message}`);
+    showProgress(state.tab, false);
+    setGeneratingState(false);
+    state.generating = false;
+  }
+}
+
+async function pollForResult(promptId) {
+  let attempts = 0;
+  const maxAttempts = 300;
+  const poll = async () => {
+    attempts++;
+    try {
+      const r = await fetch(`${state.apiUrl}/history/${promptId}`);
+      if (!r.ok) throw new Error('History-Abfrage fehlgeschlagen');
+      const history = await r.json();
+      if (history[promptId]) {
+        const entry = history[promptId];
+        if (entry.status?.status_str === 'error') throw new Error('ComfyUI meldete einen Fehler.');
+        const outputs = entry.outputs || {};
+        let mediaItems = [];
+        for (const nodeId of Object.keys(outputs)) {
+          const o = outputs[nodeId];
+          if (o.images) mediaItems.push(...o.images.map(i => ({...i, type:'image'})));
+          if (o.gifs) mediaItems.push(...o.gifs.map(g => ({...g, type:'video'})));
+          if (o.videos) mediaItems.push(...o.videos.map(v => ({...v, type:'video'})));
+        }
+        if (mediaItems.length > 0) {
+          setProgressStep(state.tab, 'decode');
+          setProgressPercent(state.tab, 90);
+          setProgressStatus(state.tab, 'Lade Medien herunter...');
+          for (const item of mediaItems) {
+            const params = new URLSearchParams({ filename: item.filename, subfolder: item.subfolder || '', type: 'output' });
+            try {
+              const blobResp = await fetch(`${state.apiUrl}/view?${params}`);
+              if (!blobResp.ok) continue;
+              const objectUrl = URL.createObjectURL(await blobResp.blob());
+              const isVideo = item.type === 'video' || item.filename?.match(/\.(mp4|gif|webm)$/i);
+              const [w,h] = state.resolution.split('x').map(Number);
+              galleries[state.tab].push({
+                url: objectUrl, prompt: document.getElementById('main-prompt').value.trim(),
+                resolution: state.resolution, preset: state.preset,
+                steps: document.getElementById('steps-slider').value,
+                cfg: document.getElementById('cfg-slider').value,
+                aspectRatio: `${w}/${h}`, ts: Date.now(), filename: item.filename,
+                favorite: false,
+              });
+              saveToStorage();
+              renderGallery(state.tab);
+            } catch(err) { console.warn('Download Fehler:', err); }
+          }
+          clearInterval(state.pollInterval);
+          setProgressStep(state.tab, 'done');
+          setProgressPercent(state.tab, 100);
+          setTimeout(() => {
+            showProgress(state.tab, false);
+            showSuccess(state.tab, `${mediaItems.length} ${state.tab === 'videos' ? 'Video(s)' : 'Bild(er)'} erfolgreich generiert!`);
+            setGeneratingState(false);
+            state.generating = false;
+          }, 800);
+          return;
+        }
+        const pct = Math.min(15 + (attempts / maxAttempts) * 70, 85);
+        setProgressPercent(state.tab, pct);
+        setProgressStatus(state.tab, `Sampling läuft... (${attempts * 2}s)`);
+      } else {
+        try {
+          const qr = await fetch(`${state.apiUrl}/queue`);
+          const qdata = await qr.json();
+          const running = qdata.queue_running || [];
+          const pending = qdata.queue_pending || [];
+          if (running.some(i => i[1] === promptId)) {
+            setProgressStep(state.tab, 'sampling');
+            setProgressPercent(state.tab, Math.min(20 + (attempts/maxAttempts)*65, 85));
+            setProgressStatus(state.tab, 'Wird verarbeitet...');
+          } else {
+            const pos = pending.findIndex(i => i[1] === promptId);
+            setProgressStep(state.tab, 'queue');
+            setProgressPercent(state.tab, 10);
+            setProgressStatus(state.tab, pos >= 0 ? `Warteschlange: Position ${pos + 1}` : 'Warte...');
+          }
+        } catch(e) {}
+      }
+    } catch(err) {
+      clearInterval(state.pollInterval);
+      showError(state.tab, `Fehler: ${err.message}`);
+      showProgress(state.tab, false);
+      setGeneratingState(false);
+      state.generating = false;
+      return;
+    }
+    if (attempts >= maxAttempts) {
+      clearInterval(state.pollInterval);
+      showError(state.tab, 'Zeitüberschreitung. Überprüfe ComfyUI.');
+      showProgress(state.tab, false);
+      setGeneratingState(false);
+      state.generating = false;
+    }
+  };
+  state.pollInterval = setInterval(poll, 2000);
+  await poll();
+}
+
+// ===== UI HELPERS =====
+function setGeneratingState(isGenerating) {
+  const btn = document.getElementById('btn-generate');
+  const icon = document.getElementById('btn-generate-icon');
+  const text = document.getElementById('btn-generate-text');
+  btn.disabled = isGenerating;
+  btn.classList.toggle('generating', isGenerating);
+  if (isGenerating) { icon.innerHTML = '<div class="spinner"></div>'; text.textContent = 'Generiert...'; }
+  else { icon.textContent = '✦'; text.textContent = state.tab === 'videos' ? 'Video generieren' : 'Generieren'; clearInterval(state.pollInterval); }
+}
+function showProgress(tab, v) { document.getElementById(`progress-${tab}`).classList.toggle('visible', v); if (!v) setProgressPercent(tab, 0); }
+function setProgressPercent(tab, p) { document.getElementById(`progress-fill-${tab}`).style.width = p + '%'; }
+function setProgressStatus(tab, t) { document.getElementById(`progress-status-${tab}`).textContent = t; }
+function setProgressStep(tab, step) {
+  const prefix = tab === 'videos' ? 'vstep' : 'step';
+  const steps = ['queue','sampling','decode','done'];
+  const idx = steps.indexOf(step);
+  steps.forEach((s,i) => {
+    const el = document.getElementById(`${prefix}-${s}`);
+    if (!el) return;
+    el.classList.remove('active','done');
+    if (i < idx) el.classList.add('done');
+    else if (i === idx) el.classList.add('active');
+  });
+}
+function showError(tab, msg) {
+  const el = document.getElementById(`error-${tab}`);
+  document.getElementById(`error-text-${tab}`).textContent = msg;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 12000);
+}
+function showSuccess(tab, msg) {
+  document.getElementById(`success-${tab}`).querySelector('span:last-child').textContent = msg;
+  document.getElementById(`success-${tab}`).classList.add('visible');
+  setTimeout(() => document.getElementById(`success-${tab}`).classList.remove('visible'), 5000);
+  showToast(msg, 'success');
+}
+function hideMessages(tab) {
+  document.getElementById(`error-${tab}`).classList.remove('visible');
+  document.getElementById(`success-${tab}`).classList.remove('visible');
+}
+
+// ===== MODAL =====
+function openModal(id) { document.getElementById(id).classList.add('visible'); }
+function closeModal(id) { document.getElementById(id).classList.remove('visible'); }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.visible').forEach(m => m.classList.remove('visible'));
+    closeLightbox();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !state.generating) startGeneration();
+});
+
+// ===== LIGHTBOX =====
+function openLightbox(url, type) {
+  state.lightboxSrc = url; state.lightboxType = type;
+  const img = document.getElementById('lightbox-img');
+  const vid = document.getElementById('lightbox-video');
+  if (type === 'video') { img.style.display = 'none'; vid.src = url; vid.style.display = 'block'; }
+  else { vid.style.display = 'none'; img.src = url; img.style.display = 'block'; }
+  document.getElementById('lightbox').classList.add('visible');
+}
+function closeLightbox(e) {
+  if (e && e.target !== document.getElementById('lightbox') && !e.target.classList.contains('lightbox-close')) return;
+  document.getElementById('lightbox').classList.remove('visible');
+  document.getElementById('lightbox-video').pause?.();
+}
+function downloadLightbox() { downloadItem(state.lightboxSrc, `ai_generated_${Date.now()}`); }
+
+// ===== DOWNLOAD =====
+function downloadItem(url, name) {
+  const a = document.createElement('a');
+  a.href = url; a.download = name || 'ai_generated';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast('Download gestartet ✓', 'success');
+}
+
+// ===== TOAST =====
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const icons = { success: '✓', error: '⚠', info: '◆' };
+  const colors = { success: 'var(--success)', error: 'var(--error)', info: 'var(--accent-secondary)' };
+  toast.innerHTML = `<span style="color:${colors[type]||colors.info};font-size:14px">${icons[type]||'◆'}</span> ${escapeHtml(msg)}`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.animation = 'toastOut 0.3s ease forwards'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

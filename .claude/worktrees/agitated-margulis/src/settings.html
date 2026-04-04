@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
+<title>ChatPro Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#111114;--s1:#161619;--s2:#1e1e23;--s3:#252530;--b1:#2e2e38;--b2:#3d3d4a;--t1:#f0f0f5;--t2:#9898b0;--t3:#55556a;--t4:#33333f;--pink:#ff4d8f;--pink-dim:rgba(255,77,143,0.12);--green:#3dd68c;--red:#ff5252;--r:10px;--r-sm:6px; }
+  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:var(--bg); color:var(--t1); font-size:13px; }
+  .titlebar { -webkit-app-region:drag; height:36px; background:var(--s1); border-bottom:1px solid var(--b1); display:flex; align-items:center; justify-content:space-between; padding:0 14px; flex-shrink:0; }
+  .tb-title { font-size:12px; font-weight:600; color:var(--t2); pointer-events:none; }
+  .tb-close { -webkit-app-region:no-drag; background:none; border:none; color:var(--t3); cursor:pointer; font-size:14px; padding:2px 6px; border-radius:4px; transition:all 0.15s; }
+  .tb-close:hover { color:var(--red); background:var(--s2); }
+  .body { padding:20px; overflow-y:auto; height:calc(100% - 36px); }
+  .section { margin-bottom:22px; }
+  .section-label { font-size:10px; font-weight:600; letter-spacing:0.14em; text-transform:uppercase; color:var(--t3); margin-bottom:10px; }
+  .field { margin-bottom:12px; }
+  .field-label { font-size:11px; color:var(--t2); margin-bottom:5px; }
+  .field-sub { font-size:10px; color:var(--t3); margin-top:4px; line-height:1.5; }
+  .field-sub a { color:var(--pink); cursor:pointer; }
+  .input { width:100%; background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t1); font-family:'JetBrains Mono',monospace; font-size:12px; padding:10px 12px; outline:none; transition:border-color 0.15s; }
+  .input:focus { border-color:var(--pink); }
+  .input::placeholder { color:var(--t3); }
+  .textarea { width:100%; background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t1); font-family:'Instrument Sans',sans-serif; font-size:12px; padding:10px 12px; outline:none; resize:none; min-height:80px; line-height:1.6; transition:border-color 0.15s; }
+  .textarea:focus { border-color:var(--pink); }
+  .textarea::placeholder { color:var(--t3); }
+  .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); }
+  .toggle-label { font-size:12px; color:var(--t2); }
+  .toggle { width:36px; height:20px; background:var(--b2); border-radius:10px; cursor:pointer; position:relative; transition:background 0.2s; border:none; flex-shrink:0; }
+  .toggle.on { background:var(--pink); }
+  .toggle::after { content:''; position:absolute; width:14px; height:14px; background:white; border-radius:50%; top:3px; left:3px; transition:left 0.2s; }
+  .toggle.on::after { left:19px; }
+  .learn-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px; }
+  .ls-card { background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); padding:10px; text-align:center; }
+  .ls-num { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:500; color:var(--t1); }
+  .ls-label { font-size:9px; color:var(--t3); margin-top:2px; }
+  .rules-box { background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); padding:10px 12px; font-size:11px; color:var(--t2); line-height:1.7; white-space:pre-wrap; max-height:100px; overflow-y:auto; font-family:'Instrument Sans',sans-serif; }
+  .no-rules { font-size:11px; color:var(--t3); font-style:italic; }
+  .btn-save { width:100%; background:linear-gradient(135deg,var(--pink),#ff8c69); border:none; border-radius:var(--r-sm); color:white; font-family:'Instrument Sans',sans-serif; font-size:13px; font-weight:600; padding:12px; cursor:pointer; transition:opacity 0.15s; margin-top:4px; }
+  .btn-save:hover { opacity:0.88; }
+  .save-msg { text-align:center; font-size:11px; color:var(--green); margin-top:8px; display:none; }
+  .divider { height:1px; background:var(--b1); margin:20px 0; }
+  ::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <span class="tb-title">⚙ ChatPro Settings</span>
+  <button class="tb-close" onclick="window.chatpro.closeSettings()">✕</button>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">API Key</div>
+    <div class="field">
+      <div class="field-label">Anthropic API Key</div>
+      <input class="input" type="password" id="apiKey" placeholder="sk-ant-api03-…" />
+      <div class="field-sub">Get your key at <a onclick="window.chatpro.openUrl('https://console.anthropic.com')">console.anthropic.com</a> · Stored locally, never shared</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="section-label">Hotkey</div>
+    <div class="field">
+      <div class="field-label">Global shortcut to open overlay</div>
+      <input class="input" type="text" id="hotkey" placeholder="CommandOrControl+Shift+T" />
+      <div class="field-sub">Use: Ctrl / Shift / Alt / Command + any key. Default: Ctrl+Shift+T</div>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">Auto-detect German text from clipboard</span>
+      <button class="toggle" id="autoDetectToggle" onclick="toggleAutoDetect()"></button>
+    </div>
+    <div class="field-sub" style="margin-top:6px;">When ON — overlay opens automatically whenever you copy a German message. When OFF — only opens with the hotkey.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="section-label">Subscriber context</div>
+    <div class="field">
+      <div class="field-label">Notes about your subscribers (optional)</div>
+      <textarea class="textarea" id="subProfile" placeholder="e.g. German subscribers tend to be 25-40, value personal attention, respond well to exclusive content teases…"></textarea>
+      <div class="field-sub">This is added to every translation to make replies more relevant.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="section-label">Self-learning status</div>
+    <div class="learn-stats">
+      <div class="ls-card"><div class="ls-num" id="lsTotal">0</div><div class="ls-label">Translations</div></div>
+      <div class="ls-card"><div class="ls-num" id="lsFeedback">0</div><div class="ls-label">Outcomes tracked</div></div>
+      <div class="ls-card"><div class="ls-num" id="lsEvolutions">—</div><div class="ls-label">Rules evolved</div></div>
+    </div>
+    <div class="field-label" style="margin-bottom:6px;">Current learned rules</div>
+    <div class="rules-box" id="rulesBox"><span class="no-rules">No rules yet. Track 15 outcomes to trigger first evolution.</span></div>
+  </div>
+
+  <button class="btn-save" onclick="saveSettings()">Save settings</button>
+  <div class="save-msg" id="saveMsg">✓ Saved!</div>
+
+</div>
+
+<script>
+let autoDetect = true;
+
+async function init(){
+  const s = await window.chatpro.getSettings();
+  document.getElementById('apiKey').value      = s.apiKey    || '';
+  document.getElementById('hotkey').value      = s.hotkey    || 'CommandOrControl+Shift+T';
+  document.getElementById('subProfile').value  = s.subProfile|| '';
+  autoDetect = s.autoDetect !== false;
+  updateToggle();
+
+  const l = await window.chatpro.getLearning();
+  document.getElementById('lsTotal').textContent     = l.total || 0;
+  document.getElementById('lsFeedback').textContent  = (l.feedbacks||[]).length;
+  document.getElementById('lsEvolutions').textContent= l.rules ? '✓' : '—';
+  if(l.rules) document.getElementById('rulesBox').textContent = l.rules;
+}
+init();
+
+function toggleAutoDetect(){
+  autoDetect = !autoDetect;
+  updateToggle();
+}
+function updateToggle(){
+  const t = document.getElementById('autoDetectToggle');
+  t.classList.toggle('on', autoDetect);
+}
+
+async function saveSettings(){
+  const apiKey     = document.getElementById('apiKey').value.trim();
+  const hotkey     = document.getElementById('hotkey').value.trim() || 'CommandOrControl+Shift+T';
+  const subProfile = document.getElementById('subProfile').value.trim();
+  await window.chatpro.saveSettings({ apiKey, hotkey, autoDetect, subProfile });
+  const msg = document.getElementById('saveMsg');
+  msg.style.display='block';
+  setTimeout(()=>{ msg.style.display='none'; }, 2000);
+}
+</script>
+</body>
+</html>
