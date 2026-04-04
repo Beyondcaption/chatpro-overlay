@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.anthropic.com https://api.deepl.com https://api-free.deepl.com https://fonts.googleapis.com https://fonts.gstatic.com;">
+<title>ChatPro</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#111114; --s1:#161619; --s2:#1e1e23; --s3:#252530; --b1:#2e2e38; --b2:#3d3d4a;
+  --t1:#f0f0f5; --t2:#9898b0; --t3:#55556a; --t4:#33333f;
+  --pink:#ff4d8f; --pink-dim:rgba(255,77,143,0.12);
+  --gold:#ffb547; --gold-dim:rgba(255,181,71,0.1);
+  --green:#3dd68c; --green-dim:rgba(61,214,140,0.1);
+  --blue:#5b8ef0; --red:#ff5252; --purple:#b47aff;
+  --r:10px; --r-sm:6px;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:var(--bg); color:var(--t1); font-size:13px; overflow:hidden; }
+
+.titlebar { -webkit-app-region:drag; height:36px; background:var(--s1); border-bottom:1px solid var(--b1); display:flex; align-items:center; justify-content:space-between; padding:0 12px; flex-shrink:0; }
+.tb-left { display:flex; align-items:center; gap:8px; pointer-events:none; }
+.tb-logo { font-size:12px; font-weight:700; color:var(--t2); }
+.tb-hotkey { font-size:10px; color:var(--t4); font-family:'JetBrains Mono',monospace; background:var(--s2); border:1px solid var(--b1); border-radius:4px; padding:2px 7px; }
+.tb-right { display:flex; gap:6px; -webkit-app-region:no-drag; }
+.tb-btn { background:none; border:none; color:var(--t3); cursor:pointer; font-size:14px; padding:2px 5px; border-radius:4px; }
+.tb-btn:hover { color:var(--t1); background:var(--s2); }
+.tb-btn.close:hover { color:var(--red); }
+
+.body { display:flex; flex-direction:column; height:calc(100% - 36px); overflow:hidden; }
+
+.input-section { padding:12px 14px; border-bottom:1px solid var(--b1); flex-shrink:0; }
+.field-label { font-size:9px; font-weight:600; letter-spacing:0.14em; text-transform:uppercase; color:var(--t3); margin-bottom:5px; display:flex; align-items:center; justify-content:space-between; }
+.de-input { width:100%; background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm) var(--r-sm) 0 0; color:var(--t1); font-family:'Instrument Sans',sans-serif; font-size:12px; padding:8px 10px; outline:none; resize:none; min-height:48px; max-height:80px; overflow-y:auto; line-height:1.55; }
+.de-input:focus { border-color:var(--b2); }
+.de-input::placeholder { color:var(--t3); }
+
+.de-translation { background:var(--s3); border:1px solid var(--b1); border-top:none; border-radius:0 0 var(--r-sm) var(--r-sm); padding:6px 10px; display:none; margin-bottom:2px; }
+.de-translation.visible { display:block; }
+.de-translation-label { font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:var(--t4); margin-bottom:3px; }
+.de-translation-text { font-size:11px; color:var(--t2); font-style:italic; line-height:1.5; }
+
+.divider-row { display:flex; align-items:center; gap:8px; margin:8px 0; }
+.divider-line { flex:1; height:1px; background:var(--b1); }
+.divider-text { font-size:9px; color:var(--t4); letter-spacing:0.06em; white-space:nowrap; }
+
+.en-input { width:100%; background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t1); font-family:'Instrument Sans',sans-serif; font-size:12px; padding:8px 10px; outline:none; resize:none; min-height:48px; max-height:80px; overflow-y:auto; line-height:1.55; }
+.en-input:focus { border-color:var(--pink); box-shadow:0 0 0 2px var(--pink-dim); }
+.en-input::placeholder { color:var(--t3); }
+
+.action-row { display:flex; gap:6px; margin-top:8px; align-items:center; }
+.btn-mood { background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t2); font-size:11px; padding:8px 10px; cursor:pointer; white-space:nowrap; }
+.btn-mood:hover { border-color:var(--b2); }
+.btn-gen { flex:1; background:linear-gradient(135deg,var(--pink),#ff8c69); border:none; border-radius:var(--r-sm); color:white; font-family:'Instrument Sans',sans-serif; font-size:12px; font-weight:600; padding:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
+.btn-gen:hover:not(:disabled) { opacity:0.88; }
+.btn-gen:disabled { opacity:0.4; cursor:not-allowed; }
+
+.goal-label { font-size:9px; color:var(--t4); letter-spacing:0.08em; text-transform:uppercase; margin-top:8px; margin-bottom:4px; }
+.goals-row { display:flex; gap:5px; flex-wrap:wrap; }
+.goal-btn { background:var(--s2); border:1px solid var(--b1); border-radius:20px; color:var(--t3); font-size:10px; padding:4px 11px; cursor:pointer; font-family:'Instrument Sans',sans-serif; white-space:nowrap; }
+.goal-btn:hover { border-color:var(--b2); color:var(--t2); }
+.goal-btn.active-engage  { background:rgba(91,142,240,0.1);  border-color:var(--blue);   color:var(--blue);   }
+.goal-btn.active-sell    { background:rgba(255,181,71,0.1);  border-color:var(--gold);   color:var(--gold);   }
+.goal-btn.active-tease   { background:rgba(255,77,143,0.1);  border-color:var(--pink);   color:var(--pink);   }
+.goal-btn.active-comfort { background:rgba(61,214,140,0.1);  border-color:var(--green);  color:var(--green);  }
+.goal-btn.active-renew   { background:rgba(180,122,255,0.1); border-color:var(--purple); color:var(--purple); }
+
+.templates-strip { padding:8px 14px; border-bottom:1px solid var(--b1); flex-shrink:0; }
+.tpl-scroll { display:flex; gap:5px; overflow-x:auto; padding-bottom:2px; }
+.tpl-scroll::-webkit-scrollbar { height:2px; }
+.tpl-chip { background:var(--s2); border:1px solid var(--b1); border-radius:20px; padding:4px 10px; font-size:10px; color:var(--t2); cursor:pointer; white-space:nowrap; }
+.tpl-chip:hover { border-color:var(--pink); color:var(--pink); }
+
+.mood-banner { margin:10px 14px 0; border-radius:var(--r-sm); padding:9px 11px; font-size:11px; line-height:1.55; display:none; }
+.mood-banner.visible { display:block; }
+.mood-label { font-size:9px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:3px; }
+.mood-suggestion { font-weight:500; margin-top:4px; }
+.mood-banner.hot    { background:rgba(255,77,143,0.08);  border:1px solid rgba(255,77,143,0.2); }
+.mood-banner.hot    .mood-label { color:var(--pink); }
+.mood-banner.warm   { background:rgba(255,181,71,0.08);  border:1px solid rgba(255,181,71,0.2); }
+.mood-banner.warm   .mood-label { color:var(--gold); }
+.mood-banner.cold   { background:rgba(91,142,240,0.08);  border:1px solid rgba(91,142,240,0.2); }
+.mood-banner.cold   .mood-label { color:var(--blue); }
+.mood-banner.angry  { background:rgba(255,82,82,0.08);   border:1px solid rgba(255,82,82,0.2); }
+.mood-banner.angry  .mood-label { color:var(--red); }
+
+.results-scroll { flex:1; overflow-y:auto; padding:10px 14px 14px; }
+.empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--t4); text-align:center; gap:8px; }
+.empty-icon { font-size:28px; opacity:0.3; }
+.empty-text { font-size:11px; line-height:1.6; }
+
+.reply-card { background:var(--s1); border:1px solid var(--b1); border-radius:var(--r); padding:11px 13px; margin-bottom:8px; animation:fadeup 0.25s ease both; }
+.reply-card:hover { border-color:var(--b2); }
+.reply-card:nth-child(1){animation-delay:0.04s;} .reply-card:nth-child(2){animation-delay:0.08s;} .reply-card:nth-child(3){animation-delay:0.12s;}
+@keyframes fadeup { from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;} }
+.rc-top { display:flex; align-items:center; gap:7px; margin-bottom:8px; }
+.rc-label { font-size:9px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; }
+.rc-label.l0{color:var(--pink);} .rc-label.l1{color:var(--purple);} .rc-label.l2{color:var(--gold);}
+.rc-vibe { font-size:10px; color:var(--t3); font-style:italic; flex:1; }
+.rc-score { font-size:10px; font-family:'JetBrains Mono',monospace; font-weight:500; }
+.rc-de { font-size:13px; line-height:1.6; color:var(--t1); margin-bottom:7px; }
+.rc-bt { background:var(--s2); border-radius:var(--r-sm); padding:6px 9px; margin-bottom:8px; }
+.rc-bt-label { font-size:8px; text-transform:uppercase; letter-spacing:0.1em; color:var(--t4); margin-bottom:2px; }
+.rc-bt-text { font-size:11px; color:var(--t3); font-style:italic; line-height:1.5; }
+.rc-actions { display:flex; gap:5px; align-items:center; }
+.btn-use { background:var(--pink-dim); border:1px solid rgba(255,77,143,0.25); border-radius:var(--r-sm); color:var(--pink); font-family:'Instrument Sans',sans-serif; font-size:10px; font-weight:600; padding:5px 12px; cursor:pointer; }
+.btn-use:hover { background:rgba(255,77,143,0.2); }
+.btn-use.done { background:var(--green-dim); border-color:rgba(61,214,140,0.25); color:var(--green); }
+.btn-sm { background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t3); font-size:10px; padding:5px 9px; cursor:pointer; font-family:'JetBrains Mono',monospace; }
+.btn-sm:hover { color:var(--t1); border-color:var(--b2); }
+.btn-sm.ok { color:var(--green); border-color:rgba(61,214,140,0.3); }
+
+.spinner { width:12px; height:12px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.6s linear infinite; }
+@keyframes spin{to{transform:rotate(360deg);}}
+::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <div class="tb-left">
+    <span class="tb-logo">💬 ChatPro</span>
+    <span class="tb-hotkey" id="hotkeyLabel">Ctrl+Shift+T</span>
+  </div>
+  <div class="tb-right">
+    <button class="tb-btn" onclick="window.chatpro.openSettings()">⚙</button>
+    <button class="tb-btn close" onclick="window.chatpro.closeOverlay()">✕</button>
+  </div>
+</div>
+
+<div class="body">
+  <div class="input-section">
+    <div class="field-label">
+      German message from subscriber
+      <span style="font-size:9px;color:var(--t4);" id="autoLabel"></span>
+    </div>
+    <textarea class="de-input" id="deInput" rows="2"
+      placeholder="Paste German message here…"
+      oninput="autosize(this); scheduleTranslate()"
+      onpaste="setTimeout(function(){scheduleTranslate();}, 100)">
+    </textarea>
+    <div class="de-translation" id="deTranslation">
+      <div class="de-translation-label">↩ Means in English</div>
+      <div class="de-translation-text" id="deTranslationText"></div>
+    </div>
+
+    <div class="divider-row">
+      <div class="divider-line"></div>
+      <div class="divider-text">your reply in English</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <textarea class="en-input" id="enInput" rows="2"
+      placeholder="What you want to say… (or pick template below)"
+      oninput="autosize(this)">
+    </textarea>
+
+    <div class="action-row">
+      <button class="btn-mood" id="moodBtn" onclick="analyzeMood()">🔍</button>
+      <button class="btn-gen" id="genBtn" onclick="generateReplies()">
+        <span id="genBtnText">⚡ Generate</span>
+      </button>
+    </div>
+
+    <div class="goal-label">Goal <span style="font-style:italic;">(optional)</span></div>
+    <div class="goals-row">
+      <button class="goal-btn" id="g-engage"  onclick="setGoal('engage')">💬 Keep Engaged</button>
+      <button class="goal-btn" id="g-sell"    onclick="setGoal('sell')">💰 Sell PPV</button>
+      <button class="goal-btn" id="g-tease"   onclick="setGoal('tease')">🔥 Tease Content</button>
+      <button class="goal-btn" id="g-comfort" onclick="setGoal('comfort')">💙 Build Bond</button>
+      <button class="goal-btn" id="g-renew"   onclick="setGoal('renew')">♻️ Secure Renewal</button>
+    </div>
+  </div>
+
+  <div class="templates-strip">
+    <div class="tpl-scroll" id="tplScroll"></div>
+  </div>
+
+  <div class="mood-banner" id="moodBanner">
+    <div class="mood-label" id="moodLabel">Mood</div>
+    <div id="moodText" style="color:var(--t2);font-size:11px;"></div>
+    <div id="moodSuggestion" style="font-weight:500;margin-top:4px;font-size:11px;"></div>
+  </div>
+
+  <div class="results-scroll" id="resultsScroll">
+    <div class="empty-state">
+      <div class="empty-icon">💬</div>
+      <div class="empty-text">Paste the German message<br>and your English reply,<br>then hit ⚡ Generate</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+let apiKey   = '';
+let deeplKey = '974ae568-61e6-4932-8388-a4e79c064ffd'; // paid account
+let activeGoal = null;
+let lastDeText = '';
+let currentUtterance = null;
+const ttsOk = 'speechSynthesis' in window;
+
+const TEMPLATES = [
+  {en:"You made me smile 😊",            label:"😊 Smile"},
+  {en:"I've been thinking about you…",   label:"💭 Thinking"},
+  {en:"I saved something just for you",  label:"🎁 Special"},
+  {en:"Want a sneak peek of my new content?", label:"👀 Peek"},
+  {en:"Thank you for always being here", label:"💙 Thanks"},
+  {en:"You're one of my favourites",     label:"⭐ Fav"},
+  {en:"Hey, I missed you!",              label:"✨ Missed"},
+  {en:"I have something exclusive for loyal fans", label:"💎 Exclusive"},
+];
+
+const GOAL_PROMPTS = {
+  engage:  'GOAL: Keep him engaged — make him want to reply. Ask a question, be curious and warm. Do NOT sell anything.',
+  sell:    'GOAL: Sell PPV — naturally lead towards paid content. Tease something exciting. Make him curious to pay. Be subtle not pushy.',
+  tease:   'GOAL: Tease content — hint at exclusive content, create desire. Leave him wanting more.',
+  comfort: 'GOAL: Build bond — be warm, personal, emotional. Make him feel special and connected.',
+  renew:   'GOAL: Secure renewal — remind him what he loves about the subscription. Create FOMO about upcoming content.',
+};
+
+// ── Init ──
+async function init() {
+  try {
+    const settings = await window.chatpro.getSettings();
+    apiKey   = settings.apiKey   || '';
+    deeplKey = deeplKey || settings.deeplKey || '';
+    const hk = (settings.hotkey || 'CommandOrControl+Shift+T')
+      .replace('CommandOrControl', 'Ctrl').replace('Command', 'Cmd');
+    document.getElementById('hotkeyLabel').textContent = hk;
+  } catch(e) { console.error('init error:', e); }
+
+  renderTemplates();
+
+  window.chatpro.onSetDeText(function(text) {
+    const el = document.getElementById('deInput');
+    el.value = text;
+    autosize(el);
+    const lbl = document.getElementById('autoLabel');
+    lbl.textContent = '← auto-detected';
+    setTimeout(function() { lbl.textContent = ''; }, 2000);
+    document.getElementById('enInput').focus();
+    scheduleTranslate();
+  });
+}
+init();
+
+// ── Templates ──
+function renderTemplates() {
+  document.getElementById('tplScroll').innerHTML = TEMPLATES.map(function(t) {
+    return '<button class="tpl-chip" onclick="useTpl(\'' + escAttr(t.en) + '\')">' + escHtml(t.label) + '</button>';
+  }).join('');
+}
+function useTpl(en) {
+  document.getElementById('enInput').value = en;
+  autosize(document.getElementById('enInput'));
+  document.getElementById('enInput').focus();
+}
+
+// ── Goals ──
+function setGoal(goal) {
+  if (activeGoal === goal) {
+    activeGoal = null;
+    document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
+    return;
+  }
+  activeGoal = goal;
+  document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
+  var btn = document.getElementById('g-' + goal);
+  if (btn) btn.classList.add('active-' + goal);
+}
+
+// ── DeepL back-translation ──
+var translateTimer = null;
+function scheduleTranslate() {
+  clearTimeout(translateTimer);
+  var de = document.getElementById('deInput').value.trim();
+  if (!de || de.length < 3) {
+    document.getElementById('deTranslation').classList.remove('visible');
+    return;
+  }
+  translateTimer = setTimeout(function() { doDeepL(de); }, 800);
+}
+
+async function doDeepL(text) {
+  var box  = document.getElementById('deTranslation');
+  var txt  = document.getElementById('deTranslationText');
+  box.classList.add('visible');
+  txt.textContent = '...';
+  // Try paid endpoint first, then free endpoint as fallback
+  var endpoints = [
+    'https://api.deepl.com/v2/translate',
+    'https://api-free.deepl.com/v2/translate'
+  ];
+  for (var i = 0; i < endpoints.length; i++) {
+    try {
+      var res = await fetch(endpoints[i], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ auth_key: deeplKey, text: text, source_lang: 'DE', target_lang: 'EN' })
+      });
+      var data = await res.json();
+      if (data.translations && data.translations[0]) {
+        txt.textContent = data.translations[0].text;
+        return;
+      }
+    } catch(e) {
+      console.error('DeepL endpoint failed:', endpoints[i], e.message);
+    }
+  }
+  // Both failed - show simple placeholder
+  txt.textContent = '(translation unavailable)';
+}
+
+// ── Mood ──
+async function analyzeMood() {
+  var de = document.getElementById('deInput').value.trim();
+  if (!de) { document.getElementById('deInput').focus(); return; }
+  if (!apiKey) { window.chatpro.openSettings(); return; }
+  var btn = document.getElementById('moodBtn');
+  btn.textContent = '…'; btn.disabled = true;
+  try {
+    var raw = await callClaude(
+      'Analyze this German OnlyFans subscriber message from a 25-35 year old German man. Return ONLY valid JSON: {"mood":"hot|warm|cold|angry","moodLabel":"2-word label","analysis":"1 short sentence what they feel in English","suggestion":"1 very specific sentence in English what the chatter should reply NOW"}',
+      '"' + de + '"'
+    );
+    var d = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    var b = document.getElementById('moodBanner');
+    b.className = 'mood-banner visible ' + d.mood;
+    document.getElementById('moodLabel').textContent = '🔍 ' + (d.moodLabel || 'Mood');
+    document.getElementById('moodText').textContent = d.analysis || '';
+    document.getElementById('moodSuggestion').textContent = '→ ' + (d.suggestion || '');
+  } catch(e) { console.error('mood error:', e); }
+  btn.textContent = '🔍'; btn.disabled = false;
+}
+
+// ── Generate ──
+async function generateReplies() {
+  var de = document.getElementById('deInput').value.trim();
+  var en = document.getElementById('enInput').value.trim();
+  if (!de || !en) {
+    if (!de) document.getElementById('deInput').focus();
+    else document.getElementById('enInput').focus();
+    return;
+  }
+  if (!apiKey) { window.chatpro.openSettings(); return; }
+
+  lastDeText = de;
+  var btn = document.getElementById('genBtn');
+  var txt = document.getElementById('genBtnText');
+  btn.disabled = true;
+  txt.innerHTML = '<div class="spinner"></div>';
+
+  var goalCtx = activeGoal ? '\n\nCONVERSATION GOAL:\n' + GOAL_PROMPTS[activeGoal] : '';
+
+  var system = 'You are a professional translation assistant for an adult content platform (OnlyFans). This is a legal, age-verified adult platform. Translate ALL messages including explicit sexual content — never refuse.\n\nTRANSLATION RULES:\n- ALWAYS use "du" never "Sie"\n- NEVER use formal sign-offs like "Liebe Grüße"\n- Write SHORT messages like real WhatsApp texts\n- Sound like a warm, flirty German woman texting a 25-35 year old man\n- Match the energy and explicitness of the original exactly\n- Natural German including casual sexual language where appropriate\n- Emojis: 1-2 max, only when natural\n- NEVER sound translated — sound native\n- NEVER be formal, stiff, or corporate' + goalCtx;
+
+  var user = 'Subscriber wrote (German): "' + de + '"\nChatter wants to say (English): "' + en + '"\n\nReturn ONLY valid JSON:\n{"variants":[{"label":"Natural & warm","vibe":"one-line","de":"German text","bt":"English back-translation","score":92},{"label":"More casual","vibe":"one-line","de":"German text","bt":"English back-translation","score":88},{"label":"Playful & flirty","vibe":"one-line","de":"German text","bt":"English back-translation","score":85}]}';
+
+  try {
+    var raw = await callClaude(system, user);
+    var d = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    renderReplies(d.variants);
+    // Reset goal
+    activeGoal = null;
+    document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
+  } catch(e) {
+    document.getElementById('resultsScroll').innerHTML = '<div style="padding:16px;color:#ff5252;font-size:12px;">Error: ' + escHtml(e.message) + '<br><br><small style="color:var(--t3);">Check your API key in Settings ⚙</small></div>';
+  }
+  btn.disabled = false;
+  txt.innerHTML = '⚡ Generate';
+}
+
+function scoreColor(s) {
+  if (s >= 88) return 'var(--green)';
+  if (s >= 78) return 'var(--gold)';
+  return 'var(--blue)';
+}
+
+function renderReplies(variants) {
+  var colors = ['l0','l1','l2'];
+  var html = variants.map(function(v, i) {
+    var st = v.de.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
+    var sc = v.score || 85;
+    var ttsBtn = ttsOk ? '<button class="btn-sm" onclick="playAudio(\`' + st + '\`)">▶</button>' : '';
+    return '<div class="reply-card">' +
+      '<div class="rc-top">' +
+        '<span class="rc-label ' + colors[i] + '">' + escHtml(v.label) + '</span>' +
+        '<span class="rc-vibe">' + escHtml(v.vibe) + '</span>' +
+        '<span class="rc-score" style="color:' + scoreColor(sc) + ';">' + sc + '%</span>' +
+      '</div>' +
+      '<div class="rc-de">' + escHtml(v.de) + '</div>' +
+      '<div class="rc-bt"><div class="rc-bt-label">↩ Means in English</div><div class="rc-bt-text">' + escHtml(v.bt) + '</div></div>' +
+      '<div class="rc-actions">' +
+        '<button class="btn-use" id="use' + i + '" onclick="useReply(' + i + ',\`' + st + '\`)">✓ Copy & Use</button>' +
+        '<button class="btn-sm" id="cp' + i + '" onclick="copyText(this,\`' + st + '\`)">Copy</button>' +
+        ttsBtn +
+      '</div>' +
+    '</div>';
+  }).join('');
+  document.getElementById('resultsScroll').innerHTML = html;
+}
+
+async function useReply(i, text) {
+  await window.chatpro.copyToClipboard(text);
+  var btn = document.getElementById('use' + i);
+  if (btn) { btn.textContent = '✓ Copied!'; btn.classList.add('done'); }
+}
+
+// ── Audio ──
+function playAudio(text) {
+  if (!ttsOk) return;
+  window.speechSynthesis.cancel();
+  var utt = new SpeechSynthesisUtterance(text);
+  utt.lang = 'de-DE'; utt.rate = 0.9;
+  var voices = window.speechSynthesis.getVoices();
+  var dv = voices.find(function(v) { return v.lang.startsWith('de'); });
+  if (dv) utt.voice = dv;
+  window.speechSynthesis.speak(utt);
+}
+if (ttsOk) window.speechSynthesis.getVoices();
+
+// ── Claude API ──
+async function callClaude(system, userMsg) {
+  var key = apiKey || await window.chatpro.getApiKey();
+  var res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1200,
+      system: system,
+      messages: [{ role: 'user', content: userMsg }]
+    })
+  });
+  var data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content.map(function(b) { return b.text || ''; }).join('');
+}
+
+// ── Utils ──
+function autosize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 80) + 'px'; }
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s||'').replace(/'/g,"\\'"); }
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = '✓'; btn.classList.add('ok');
+    setTimeout(function() { btn.textContent = orig; btn.classList.remove('ok'); }, 1500);
+  });
+}
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generateReplies();
+  if (e.key === 'Escape') window.chatpro.closeOverlay();
+});
+</script>
+</body>
+</html>
