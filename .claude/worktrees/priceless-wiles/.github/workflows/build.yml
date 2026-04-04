@@ -1,0 +1,63 @@
+name: Build & Release ChatPro
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Windows
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: Zip Windows exe
+        run: |
+          cd dist
+          Compress-Archive -Path "ChatPro Overlay Setup 1.1.0.exe" -DestinationPath "ChatPro-Windows-Setup.zip" -Force
+        shell: pwsh
+
+      - name: Upload Windows to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/ChatPro-Windows-Setup.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Mac
+        run: npx electron-builder --mac --x64 --arm64 --publish never
+
+      - name: Upload Mac to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*.dmg
+          token: ${{ secrets.GITHUB_TOKEN }}
