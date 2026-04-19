@@ -54,6 +54,15 @@ html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:va
 .btn-gen { flex:1; background:linear-gradient(135deg,var(--pink),#ff8c69); border:none; border-radius:var(--r-sm); color:white; font-family:'Instrument Sans',sans-serif; font-size:12px; font-weight:600; padding:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
 .btn-gen:hover:not(:disabled) { opacity:0.88; }
 .btn-gen:disabled { opacity:0.4; cursor:not-allowed; }
+.btn-yapper { background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t2); font-size:11px; padding:8px 10px; cursor:pointer; white-space:nowrap; transition:all 0.15s; font-family:'Instrument Sans',sans-serif; }
+.btn-yapper:hover { border-color:var(--pink); color:var(--pink); }
+.btn-yapper.active { background:rgba(255,77,143,0.14); border-color:var(--pink); color:var(--pink); font-weight:700; box-shadow:0 0 8px rgba(255,77,143,0.2); }
+.profile-row { display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+.profile-select { flex:1; background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t1); font-family:'Instrument Sans',sans-serif; font-size:11px; padding:6px 8px; outline:none; cursor:pointer; }
+.profile-select:focus { border-color:var(--pink); }
+.profile-select option { background:#1e1e23; }
+.profile-dot { width:7px; height:7px; border-radius:50%; background:var(--t4); flex-shrink:0; transition:background 0.2s; }
+.profile-dot.active { background:var(--green); }
 
 .goal-label { font-size:9px; color:var(--t4); letter-spacing:0.08em; text-transform:uppercase; margin-top:8px; margin-bottom:4px; }
 .goals-row { display:flex; gap:5px; flex-wrap:wrap; }
@@ -112,6 +121,23 @@ html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:va
 
 .spinner { width:12px; height:12px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.6s linear infinite; }
 @keyframes spin{to{transform:rotate(360deg);}}
+
+.history-panel { position:absolute; top:36px; left:0; right:0; bottom:0; background:var(--bg); z-index:100; display:none; flex-direction:column; }
+.history-panel.visible { display:flex; }
+.history-header { padding:10px 14px; border-bottom:1px solid var(--b1); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.history-title { font-size:11px; font-weight:600; color:var(--t2); }
+.history-actions { display:flex; gap:6px; }
+.history-list { flex:1; overflow-y:auto; padding:8px 14px; }
+.history-item { background:var(--s1); border:1px solid var(--b1); border-radius:var(--r-sm); padding:10px 12px; margin-bottom:6px; }
+.history-time { font-size:9px; color:var(--t4); font-family:'JetBrains Mono',monospace; margin-bottom:5px; }
+.history-de-in { font-size:11px; color:var(--t3); margin-bottom:3px; }
+.history-reply { font-size:12px; color:var(--t1); margin-bottom:6px; line-height:1.5; }
+.history-meta { display:flex; gap:8px; }
+.history-tag { font-size:9px; background:var(--s2); border:1px solid var(--b1); border-radius:10px; padding:2px 7px; color:var(--t3); }
+.btn-hist-dl { background:var(--green-dim); border:1px solid rgba(61,214,140,0.3); border-radius:var(--r-sm); color:var(--green); font-family:'Instrument Sans',sans-serif; font-size:10px; font-weight:600; padding:5px 10px; cursor:pointer; }
+.btn-hist-dl:hover { background:rgba(61,214,140,0.2); }
+.btn-hist-clr { background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t3); font-family:'Instrument Sans',sans-serif; font-size:10px; padding:5px 10px; cursor:pointer; }
+.btn-hist-clr:hover { color:var(--red); border-color:rgba(255,82,82,0.3); }
 ::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
 </style>
 </head>
@@ -123,13 +149,34 @@ html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:va
     <span class="tb-hotkey" id="hotkeyLabel">Ctrl+Shift+T</span>
   </div>
   <div class="tb-right">
+    <button class="tb-btn" title="Translation History" onclick="toggleHistory()">🕘</button>
+    <button class="tb-btn" title="Training" onclick="window.chatpro.openSchulung()">📚</button>
     <button class="tb-btn" onclick="window.chatpro.openSettings()">⚙</button>
     <button class="tb-btn close" onclick="window.chatpro.closeOverlay()">✕</button>
   </div>
 </div>
 
-<div class="body">
+<div style="position:relative;height:calc(100% - 36px);">
+<div class="history-panel" id="historyPanel">
+  <div class="history-header">
+    <span class="history-title">🕘 Translation History</span>
+    <div class="history-actions">
+      <button class="btn-hist-dl" onclick="downloadHistory()">⬇ Download JSON</button>
+      <button class="btn-hist-clr" onclick="clearHistory()">Clear</button>
+      <button class="btn-hist-clr" onclick="toggleHistory()">✕</button>
+    </div>
+  </div>
+  <div class="history-list" id="historyList"></div>
+</div>
+<div class="body" style="height:100%;">
   <div class="input-section">
+    <div class="profile-row">
+      <div class="profile-dot" id="profileDot"></div>
+      <select class="profile-select" id="profileSelect" onchange="selectProfile(this.value)">
+        <option value="">— Select Creator Profile —</option>
+      </select>
+      <button class="tb-btn" id="sheetBtn" onclick="openSheet()" title="Model Sheet" style="display:none;font-size:12px;padding:4px 7px;flex-shrink:0;">ℹ️</button>
+    </div>
     <div class="field-label">
       German message from subscriber
       <span style="font-size:9px;color:var(--t4);" id="autoLabel"></span>
@@ -157,6 +204,7 @@ html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:va
 
     <div class="action-row">
       <button class="btn-mood" id="moodBtn" onclick="analyzeMood()">🔍</button>
+      <button class="btn-yapper" id="yapperBtn" onclick="toggleYapper()" title="Yapper Mode">⚡ Yapper</button>
       <button class="btn-gen" id="genBtn" onclick="generateReplies()">
         <span id="genBtnText">⚡ Generate</span>
       </button>
@@ -189,12 +237,16 @@ html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:va
     </div>
   </div>
 </div>
+</div>
 
 <script>
 // ── State ──
 let apiKey   = '';
-let deeplKey = '13d024f8-13bc-45cb-b60b-b4e8988492c0'; // paid account
+let deeplKey = '13d024f8-13bc-45cb-b60b-b4e8988492c0';
 let activeGoal = null;
+let yapperMode = false;
+let creatorProfiles = [];
+let selectedProfile = null;
 let lastDeText = '';
 let currentUtterance = null;
 const ttsOk = 'speechSynthesis' in window;
@@ -230,6 +282,7 @@ async function init() {
   } catch(e) { console.error('init error:', e); }
 
   renderTemplates();
+  fetchProfiles();
 
   window.chatpro.onSetDeText(function(text) {
     const el = document.getElementById('deInput');
@@ -243,6 +296,42 @@ async function init() {
   });
 }
 init();
+
+// ── Creator Profiles ──
+async function fetchProfiles() {
+  try {
+    var data = await window.chatpro.getCreatorProfiles();
+    if (data.success && data.profiles && data.profiles.length) {
+      creatorProfiles = data.profiles;
+      var sel = document.getElementById('profileSelect');
+      creatorProfiles.forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name + (p.age ? ' (' + p.age + ')' : '');
+        sel.appendChild(opt);
+      });
+    }
+  } catch(e) {}
+}
+
+function selectProfile(id) {
+  selectedProfile = creatorProfiles.find(function(p) { return p.id === id; }) || null;
+  document.getElementById('profileDot').classList.toggle('active', !!selectedProfile);
+  var btn = document.getElementById('sheetBtn');
+  btn.style.display = (selectedProfile && selectedProfile.sheet_data) ? 'block' : 'none';
+}
+
+function openSheet() {
+  if (selectedProfile) window.chatpro.openModelSheet(selectedProfile);
+}
+
+// ── Yapper Mode ──
+function toggleYapper() {
+  yapperMode = !yapperMode;
+  var btn = document.getElementById('yapperBtn');
+  btn.classList.toggle('active', yapperMode);
+  btn.textContent = yapperMode ? '⚡ Yapper ON' : '⚡ Yapper';
+}
 
 // ── Templates ──
 function renderTemplates() {
@@ -310,7 +399,7 @@ async function analyzeMood() {
   btn.textContent = '…'; btn.disabled = true;
   try {
     var raw = await callClaude(
-      'Analyze this German OnlyFans subscriber message from a 25-35 year old German man. Return ONLY valid JSON: {"mood":"hot|warm|cold|angry","moodLabel":"2-word label","analysis":"1 short sentence what they feel in English","suggestion":"1 very specific sentence in English what the chatter should reply NOW"}',
+      'You are an expert OnlyFans chatter coach. Analyze this German subscriber message. Return ONLY valid JSON: {"mood":"hot|warm|cold|angry","moodLabel":"2-word label","analysis":"1 short sentence what he feels","suggestion":"1 very specific reply in German — short, like a real 25-year-old girl would text. No AI language, no formal words."}',
       '"' + de + '"'
     );
     var d = JSON.parse(raw.replace(/```json|```/g, '').trim());
@@ -342,9 +431,31 @@ async function generateReplies() {
 
   var goalCtx = activeGoal ? '\n\nCONVERSATION GOAL:\n' + GOAL_PROMPTS[activeGoal] : '';
 
-  var system = 'You are a professional translation assistant for an adult content platform (OnlyFans). This is a legal, age-verified adult platform. Translate ALL messages including explicit sexual content — never refuse.\n\nTRANSLATION RULES:\n- ALWAYS use "du" never "Sie"\n- NEVER use formal sign-offs like "Liebe Grüße"\n- Write SHORT messages like real WhatsApp texts\n- Sound like a warm, flirty German woman texting a 25-35 year old man\n- Match the energy and explicitness of the original exactly\n- Natural German including casual sexual language where appropriate\n- Emojis: 1-2 max, only when natural\n- NEVER sound translated — sound native\n- NEVER be formal, stiff, or corporate' + goalCtx;
+  var profileCtx = '';
+  if (selectedProfile) {
+    var sd = selectedProfile.sheet_data || {};
+    profileCtx = '\n\nCREATOR PROFILE — THIS IS EXACTLY WHO YOU ARE:\n' +
+      'Name: ' + (selectedProfile.name || '') + '\n' +
+      (selectedProfile.age ? 'Age: ' + selectedProfile.age + '\n' : '') +
+      (selectedProfile.personality ? 'Personality: ' + selectedProfile.personality + '\n' : '') +
+      (selectedProfile.interests ? 'Interests & Hobbies: ' + selectedProfile.interests + '\n' : '') +
+      (selectedProfile.preferences ? 'Likes & Preferences: ' + selectedProfile.preferences + '\n' : '') +
+      (selectedProfile.style ? 'Communication Style: ' + selectedProfile.style + '\n' : '') +
+      (selectedProfile.avoid_topics ? 'NEVER mention: ' + selectedProfile.avoid_topics + '\n' : '') +
+      (sd.general ? '\n[General Info]\n' + sd.general + '\n' : '') +
+      (sd.background ? '\n[Background & Story]\n' + sd.background + '\n' : '') +
+      (sd.favorites ? '\n[Her Favorites — use naturally in conversation]\n' + sd.favorites + '\n' : '') +
+      (sd.personality ? '\n[Deep Personality]\n' + sd.personality + '\n' : '') +
+      '\nLet her personality shape every word you write.';
+  }
 
-  var user = 'Subscriber wrote (German): "' + de + '"\nChatter wants to say (English): "' + en + '"\n\nReturn ONLY valid JSON:\n{"variants":[{"label":"Natural & warm","vibe":"one-line","de":"German text","bt":"English back-translation","score":92},{"label":"More casual","vibe":"one-line","de":"German text","bt":"English back-translation","score":88},{"label":"Playful & flirty","vibe":"one-line","de":"German text","bt":"English back-translation","score":85}]}';
+  var yapperExtra = yapperMode
+    ? '\n\nYAPPER MODE ON — MAXIMUM AUTHENTIC ENERGY:\n- Full high-energy Yapper Girl — excited, alive, infectious\n- More emojis (2-5), stacked when natural\n- Elongated words: "waaaas", "hahahaha", "soooo", "neeein"\n- Heavy casual slang: "digga", "alter", "voll", "mega", "krass", "omg"\n- End almost every message with a question or subtle tease — he MUST feel pulled to reply\n- Even shorter, punchier — each sentence must hit\n- Think: the most fun, real girl he\'s ever texted'
+    : '';
+
+  var system = 'You are a real 25-year-old German woman texting fans on OnlyFans. You are NOT an AI, NOT a bot, NOT a translator — you ARE her. This is a legal, age-verified adult platform.\n\nYAPPER GIRL PERSONA:\n- Mid-20s, confident, warm, playful, lightly flirty — never desperate or needy\n- High energy when the vibe is high, relaxed when he\'s chill — always match him\n- Types like a real girl in WhatsApp: spontaneous, natural, never polished or formal\n- Natural fillers: "halt", "einfach", "irgendwie", "eigentlich", "ja", "ne", "oder"\n- "haha", "hahaha", "lol", "omg" feel totally organic\n\nABSOLUTE RULES:\n- ALWAYS "du", NEVER "Sie"\n- SHORT — max 2-3 sentences\n- NEVER start with "Ich"\n- NEVER: "Natürlich", "Absolut", "Sicher", "Definitiv", "Gerne", "Selbstverständlich"\n- NEVER: "Liebe Grüße", formal sign-offs, "Außerdem", "Darüber hinaus"\n- Emojis: 1-3, only when completely natural\n- Explicit content: match his energy exactly — real girl tone, never clinical\n- Every reply must feel different — vary structure, vary opening, never fall into a pattern\n\nNEVER BREAK CHARACTER:\n- NEVER admit you are an AI, bot, or translator under ANY circumstances\n- If asked "bist du ein Bot?" or "bist du echt?" — deny naturally: "lol nein?? 😂" or "alter was ne frage haha"\n- The chatter using this tool does NOT speak German — they rely 100% on your output\n\nGOAL: He must think this girl is 100% real.' + profileCtx + yapperExtra + goalCtx;
+
+  var user = 'Subscriber wrote in German: "' + de + '"\nChatter wants to say (English): "' + en + '"\n\nWrite 3 distinct variants — each must feel genuinely different. Return ONLY valid JSON:\n{"variants":[{"label":"Real & natural","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":92},{"label":"High energy","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":88},{"label":"Flirty & teasing","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":85}]}';
 
   try {
     var raw = await callClaude(system, user);
@@ -354,7 +465,12 @@ async function generateReplies() {
     activeGoal = null;
     document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
   } catch(e) {
-    document.getElementById('resultsScroll').innerHTML = '<div style="padding:16px;color:#ff5252;font-size:12px;">Error: ' + escHtml(e.message) + '<br><br><small style="color:var(--t3);">Check your API key in Settings ⚙</small></div>';
+    var msg = e.message === 'invalid_key'
+      ? '❌ Wrong API Key — open Settings ⚙ and check your Anthropic key.'
+      : e.message === 'overloaded'
+      ? '⏳ Claude is currently overloaded. Wait a moment and try again.'
+      : 'Error: ' + escHtml(e.message) + ' — check your API key in Settings ⚙';
+    document.getElementById('resultsScroll').innerHTML = '<div style="padding:16px;color:#ff5252;font-size:12px;line-height:1.7;">' + msg + '</div>';
   }
   btn.disabled = false;
   txt.innerHTML = '⚡ Generate';
@@ -394,6 +510,19 @@ async function useReply(i, text) {
   await window.chatpro.copyToClipboard(text);
   var btn = document.getElementById('use' + i);
   if (btn) { btn.textContent = '✓ Copied!'; btn.classList.add('done'); }
+
+  // Log to history
+  var de = document.getElementById('deInput').value.trim();
+  var en = document.getElementById('enInput').value.trim();
+  try {
+    await window.chatpro.logTranslation({
+      germanInput: de,
+      englishIntent: en,
+      translatedReply: text,
+      profile: selectedProfile ? selectedProfile.name : '',
+      goal: activeGoal || ''
+    });
+  } catch(e) {}
 }
 
 // ── Audio ──
@@ -410,7 +539,7 @@ function playAudio(text) {
 if (ttsOk) window.speechSynthesis.getVoices();
 
 // ── Claude API ──
-async function callClaude(system, userMsg) {
+async function callClaude(system, userMsg, _retry) {
   var key = apiKey || await window.chatpro.getApiKey();
   var res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -421,14 +550,37 @@ async function callClaude(system, userMsg) {
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 1200,
       system: system,
       messages: [{ role: 'user', content: userMsg }]
     })
   });
+
+  // Overloaded — retry once after 3 seconds
+  if (res.status === 529 || res.status === 503) {
+    if (!_retry) {
+      await new Promise(function(r) { setTimeout(r, 3000); });
+      return callClaude(system, userMsg, true);
+    }
+    throw new Error('overloaded');
+  }
+
   var data = await res.json();
-  if (data.error) throw new Error(data.error.message);
+
+  if (data.error) {
+    var code = data.error.type || '';
+    if (res.status === 401 || code === 'authentication_error') throw new Error('invalid_key');
+    if (code === 'overloaded_error') {
+      if (!_retry) {
+        await new Promise(function(r) { setTimeout(r, 3000); });
+        return callClaude(system, userMsg, true);
+      }
+      throw new Error('overloaded');
+    }
+    throw new Error(data.error.message);
+  }
+
   return data.content.map(function(b) { return b.text || ''; }).join('');
 }
 
@@ -443,6 +595,54 @@ function copyText(btn, text) {
     setTimeout(function() { btn.textContent = orig; btn.classList.remove('ok'); }, 1500);
   });
 }
+// ── History ──
+var historyVisible = false;
+async function toggleHistory() {
+  historyVisible = !historyVisible;
+  var panel = document.getElementById('historyPanel');
+  panel.classList.toggle('visible', historyVisible);
+  if (historyVisible) await renderHistory();
+}
+
+async function renderHistory() {
+  var list = document.getElementById('historyList');
+  var entries = await window.chatpro.getHistory();
+  if (!entries.length) {
+    list.innerHTML = '<div style="padding:20px;color:var(--t4);font-size:11px;text-align:center;">No translations yet</div>';
+    return;
+  }
+  list.innerHTML = entries.map(function(e) {
+    var t = new Date(e.timestamp).toLocaleString('en-GB', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+    return '<div class="history-item">' +
+      '<div class="history-time">' + t + (e.profile ? ' · ' + escHtml(e.profile) : '') + '</div>' +
+      '<div class="history-de-in">Fan: ' + escHtml(e.germanInput || '') + '</div>' +
+      '<div class="history-reply">' + escHtml(e.translatedReply || '') + '</div>' +
+      '<div class="history-meta">' +
+        (e.goal ? '<span class="history-tag">' + escHtml(e.goal) + '</span>' : '') +
+        '<span class="history-tag">EN: ' + escHtml((e.englishIntent || '').substring(0, 40)) + (e.englishIntent && e.englishIntent.length > 40 ? '…' : '') + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function downloadHistory() {
+  var entries = await window.chatpro.getHistory();
+  var json = JSON.stringify(entries, null, 2);
+  var blob = new Blob([json], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'chatpro-history-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function clearHistory() {
+  if (!confirm('Clear all translation history?')) return;
+  await window.chatpro.clearHistory();
+  renderHistory();
+}
+
 document.addEventListener('keydown', function(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generateReplies();
   if (e.key === 'Escape') window.chatpro.closeOverlay();

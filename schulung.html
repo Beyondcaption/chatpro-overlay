@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
+<title>ChatPro Training</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#111114; --s1:#161619; --s2:#1e1e23; --s3:#252530; --b1:#2e2e38; --b2:#3d3d4a;
+  --t1:#f0f0f5; --t2:#9898b0; --t3:#55556a; --t4:#33333f;
+  --pink:#ff4d8f; --pink-dim:rgba(255,77,143,0.1);
+  --gold:#ffb547; --green:#3dd68c; --blue:#5b8ef0; --purple:#b47aff;
+  --r:10px; --r-sm:6px;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:var(--bg); color:var(--t1); font-size:13px; overflow:hidden; }
+
+.titlebar { -webkit-app-region:drag; height:36px; background:var(--s1); border-bottom:1px solid var(--b1); display:flex; align-items:center; justify-content:space-between; padding:0 12px; flex-shrink:0; }
+.tb-left { display:flex; align-items:center; gap:8px; pointer-events:none; }
+.tb-logo { font-size:12px; font-weight:700; color:var(--t2); }
+.tb-tag { font-size:10px; color:var(--t4); background:var(--s2); border:1px solid var(--b1); border-radius:4px; padding:2px 7px; font-family:'JetBrains Mono',monospace; }
+.tb-right { -webkit-app-region:no-drag; }
+.tb-btn { background:none; border:none; color:var(--t3); cursor:pointer; font-size:14px; padding:2px 5px; border-radius:4px; }
+.tb-btn:hover { color:#ff5252; background:var(--s2); }
+
+.layout { display:flex; height:calc(100% - 36px); overflow:hidden; }
+
+.sidebar { width:220px; flex-shrink:0; background:var(--s1); border-right:1px solid var(--b1); display:flex; flex-direction:column; overflow:hidden; }
+.sidebar-header { padding:14px 14px 10px; border-bottom:1px solid var(--b1); flex-shrink:0; }
+.sidebar-title { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--t3); }
+.module-list { flex:1; overflow-y:auto; padding:8px 6px; }
+.module-btn { width:100%; text-align:left; background:none; border:none; border-radius:var(--r-sm); color:var(--t2); font-family:'Instrument Sans',sans-serif; font-size:11px; padding:8px 10px; cursor:pointer; display:flex; align-items:center; gap:8px; line-height:1.35; transition:all 0.15s; margin-bottom:2px; }
+.module-btn:hover { background:var(--s2); color:var(--t1); }
+.module-btn.active { background:var(--pink-dim); color:var(--pink); border:1px solid rgba(255,77,143,0.2); }
+.module-btn .mod-num { font-size:9px; font-family:'JetBrains Mono',monospace; color:var(--t4); width:16px; flex-shrink:0; }
+.module-btn.active .mod-num { color:var(--pink); opacity:0.6; }
+
+.content { flex:1; overflow-y:auto; padding:24px 28px; }
+.content::-webkit-scrollbar { width:3px; }
+.content::-webkit-scrollbar-thumb { background:var(--b2); border-radius:2px; }
+
+.mod-header { margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--b1); }
+.mod-eyebrow { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--pink); margin-bottom:6px; }
+.mod-title { font-size:20px; font-weight:700; color:var(--t1); line-height:1.3; }
+.mod-subtitle { font-size:12px; color:var(--t2); margin-top:5px; line-height:1.5; }
+
+h2 { font-size:14px; font-weight:700; color:var(--t1); margin:20px 0 10px; }
+h3 { font-size:12px; font-weight:600; color:var(--gold); margin:16px 0 8px; }
+p { font-size:12px; color:var(--t2); line-height:1.75; margin-bottom:10px; }
+ul, ol { padding-left:18px; margin-bottom:12px; }
+li { font-size:12px; color:var(--t2); line-height:1.7; margin-bottom:3px; }
+li strong { color:var(--t1); }
+strong { color:var(--t1); font-weight:600; }
+
+.callout { background:var(--s2); border:1px solid var(--b1); border-left:3px solid var(--pink); border-radius:0 var(--r-sm) var(--r-sm) 0; padding:12px 14px; margin:14px 0; }
+.callout.gold { border-left-color:var(--gold); }
+.callout.green { border-left-color:var(--green); }
+.callout.blue { border-left-color:var(--blue); }
+.callout-label { font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--pink); margin-bottom:5px; }
+.callout.gold .callout-label { color:var(--gold); }
+.callout.green .callout-label { color:var(--green); }
+.callout.blue .callout-label { color:var(--blue); }
+.callout p { margin:0; font-size:12px; }
+
+.example-box { background:var(--s3); border:1px solid var(--b1); border-radius:var(--r-sm); padding:12px 14px; margin:10px 0; }
+.example-label { font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--t3); margin-bottom:6px; }
+.example-text { font-size:12px; color:var(--t1); line-height:1.6; font-style:italic; }
+.example-bad { border-color:rgba(255,82,82,0.3); }
+.example-bad .example-label { color:#ff5252; }
+.example-good { border-color:rgba(61,214,140,0.3); }
+.example-good .example-label { color:var(--green); }
+
+.tag-row { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+.tag { background:var(--s2); border:1px solid var(--b1); border-radius:20px; padding:3px 10px; font-size:11px; color:var(--t2); }
+.tag.pink { background:var(--pink-dim); border-color:rgba(255,77,143,0.25); color:var(--pink); }
+.tag.gold { background:rgba(255,181,71,0.08); border-color:rgba(255,181,71,0.25); color:var(--gold); }
+.tag.green { background:rgba(61,214,140,0.08); border-color:rgba(61,214,140,0.25); color:var(--green); }
+
+.nav-footer { display:flex; justify-content:space-between; margin-top:30px; padding-top:16px; border-top:1px solid var(--b1); }
+.nav-btn { background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t2); font-family:'Instrument Sans',sans-serif; font-size:11px; padding:7px 14px; cursor:pointer; }
+.nav-btn:hover { color:var(--t1); border-color:var(--b2); }
+.nav-btn.primary { background:var(--pink-dim); border-color:rgba(255,77,143,0.3); color:var(--pink); font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <div class="tb-left">
+    <span class="tb-logo">📚 ChatPro Training</span>
+    <span class="tb-tag">Chatter Guide</span>
+  </div>
+  <div class="tb-right">
+    <button class="tb-btn" onclick="window.chatpro.closeSchulung()">✕</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">Modules</div>
+    </div>
+    <div class="module-list" id="moduleList"></div>
+  </div>
+
+  <div class="content" id="contentArea"></div>
+</div>
+
+<script>
+const MODULES = [
+  {
+    icon: '🎯',
+    title: 'Standing Out',
+    content: `
+      <div class="mod-header">
+        <div class="mod-eyebrow">Module 1</div>
+        <div class="mod-title">Standing Out & Your Mindset</div>
+        <div class="mod-subtitle">In 2026, chatting on OnlyFans is competitive. Most subs are suspicious they're not talking to the real model. This is how you beat that.</div>
+      </div>
+
+      <h2>Why You Must Stand Out</h2>
+      <p>Most subscribers are suspicious that it is not the model they are talking to, but a chatter. This means you will have to <strong>stand out</strong> with your messages to keep a fan's attention.</p>
+      <p>You have to reply <strong>FAST</strong>, think <strong>FAST</strong> and write messages that have <strong>ENERGY</strong> compared to every other girl on OnlyFans. This is the only way to keep the fan's attention and stop him from going to another model.</p>
+
+      <div class="callout">
+        <div class="callout-label">The 5 Non-Negotiables</div>
+        <p>
+          ✦ Your English has to be <strong>PERFECT</strong><br>
+          ✦ Add <strong>GIFs and Emojis</strong> in conversations<br>
+          ✦ Always create <strong>new topics</strong> of conversation<br>
+          ✦ Know how to <strong>flirt and tease</strong> the fan<br>
+          ✦ Your messages need to have <strong>ENERGY</strong>
+        </p>
+      </div>
+
+      <h2>Warming and Selling</h2>
+      <p>To warm a fan you need to add pics, videos and messages to get him horny. Slip these into the conversation <strong>effortlessly</strong> — don't force it. The goal is to slowly turn the conversation more sexual and get the fan's attention.</p>
+      <p>After he is warmed up, the blood is in his dick not his brain — and you can send the first PPV.</p>
+
+      <div class="callout gold">
+        <div class="callout-label">Being Efficient — Use Notes</div>
+        <p>
+          The sub has a daughter? → <strong>PUT IT IN THE NOTES</strong><br>
+          His payday is next Friday? → <strong>PUT IT IN THE NOTES</strong><br>
+          He likes ass more than tits? → <strong>PUT IT IN THE NOTES</strong><br><br>
+          The more information you have on a sub, the more you can stand out. A fan will appreciate when you ask what rank he got to in Valorant, how his daughter is doing, and whether his ex-wife is being annoying.
+        </p>
+      </div>
+
+      <h2>Fan Notes Format</h2>
+      <ul>
+        <li><strong>Age</strong></li>
+        <li><strong>Job</strong></li>
+        <li><strong>Hobbies</strong></li>
+        <li><strong>Preferences</strong> — what he likes in women</li>
+        <li><strong>GF status</strong> — girlfriend or not</li>
+        <li><strong>Pay Day</strong> — when does he get paid</li>
+        <li><strong>Notes</strong> — what he dislikes, kinks, dominant/submissive, nickname</li>
+      </ul>
+      <p>Fill all of this in the first 10–20 minutes so your fellow chatters in the next shift can continue the conversation seamlessly.</p>
+    `
+  },
+  {
+    icon: '✨',
+    title: 'Yapper Girl Persona',
+    content: `
+      <div class="mod-header">
+        <div class="mod-eyebrow">Module 2</div>
+        <div class="mod-title">The Yapper Girl Persona</div>
+        <div class="mod-subtitle">This is how girls actually talk to men they like — they yap about everything. Replicate this perfectly.</div>
+      </div>
+
+      <h2>What Is the Yapper Girl?</h2>
+      <p>This is how girls actually talk to men that they like: they yap about everything. They're shy at the beginning but "open up" to men they feel safe and secure with.</p>
+      <p>You have to <strong>YAP YAP YAP</strong>. It doesn't matter what it is — make stuff up. The more you yap, the more the fan will yap. The more the fan yaps, he will open up — which opens up infinite possibilities to get into sexting.</p>
+
+      <div class="example-box example-bad">
+        <div class="example-label">❌ Bad — Every Chatter Does This</div>
+        <div class="example-text">Fan: Heeey<br>Model: Heey, how are you?<br>Fan: I'm doing well, wbu?<br>Model: Doing fine, just chilling a bit, nothing much going on<br>Model: How old r u btw?</div>
+      </div>
+
+      <div class="example-box example-good">
+        <div class="example-label">✅ Good — Yapper Energy</div>
+        <div class="example-text">Fan: Heeeey<br>Model: Oh, heeey, I just saw u subbed lol, I just got onto my phone<br>Model: Thanks!!!<br>Fan: No problem, love the content<br>Model: aww thanks, haha, well I literally try my best lol<br>Model: Hope you like the content, I'm still new so I might look bad in some photos or vids yk lol<br>Fan: Nah, you look fine lol<br>Model: How are you doing, btw??<br>Fan: im doing good wbu??<br>Model: I'm doing fine tbh every day is the same lately<br>Model: Just got back from gym<br>Model: There was some weird guy in the gym staring at me, felt it in my soul lmao</div>
+      </div>
+
+      <h2>Quick Rapport — Add Details, Don't Just Agree</h2>
+
+      <div class="example-box example-bad">
+        <div class="example-label">❌ Bad — Agreeing with Everything (Sounds Like ChatGPT)</div>
+        <div class="example-text">Model: So u got any hobbies?<br>Fan: Yeah I watch anime<br>Model: Oh thats nice, what kind of anime?<br>Fan: One piece, jujutsu kaisen<br>Model: Oh no way I also love anime, im watching one piece too right now</div>
+      </div>
+
+      <div class="example-box example-good">
+        <div class="example-label">✅ Good — Adding Details, Disagreeing Naturally</div>
+        <div class="example-text">Model: So what kind of hobbies are you into??? Anything interesting or just the boring stuff?🤪<br>Fan: Eh if you think anime and gaming are boring then yeah lol<br>Model: No way, you also into that stuff?? My girlfriends tell me im a geek for liking anime lmao, I just finished death note and loved it, also on like episode 130 on One Piece rn, the arc is kinda slow but I heard it gets really good later<br>Model: And I play valorant here and there, literally bronze and getting carried lmao<br>Fan: I haven't played valorant at all, I'm more into Counter-Strike<br>Model: I hate counter-strike, never could have played it, it just made me mad and almost broke my mouse lol, so im sticking to valorant</div>
+      </div>
+
+      <div class="callout">
+        <div class="callout-label">Why Details Win</div>
+        <p>With details, the fan also adds more details → <strong>INFINITE POSSIBILITIES FOR CHATTING</strong>. The fan thinks "wait, this girl is actually nice" because you're not agreeing with every word he says.</p>
+      </div>
+
+      <h2>Topics to Yap About (Make It Up)</h2>
+      <ul>
+        <li>The weather</li>
+        <li>Something that happened at "your job"</li>
+        <li>Some guy looked at you wrong</li>
+        <li>You hated an anime episode</li>
+        <li>You lost 5 games in a row in Valorant</li>
+        <li>You just got back from the gym, feeling sweaty</li>
+        <li>Your friends said something funny today</li>
+      </ul>
+
+      <h2>Mystery Over Thirst</h2>
+      <div class="example-box example-bad">
+        <div class="example-label">❌ Too Thirsty — No Girl Talks Like This</div>
+        <div class="example-text">"I love playing with myself, baby, in my free time, it just cools me down and I love to cuuum🥵"</div>
+      </div>
+      <div class="example-box example-good">
+        <div class="example-label">✅ Mystery — Makes Him Chase</div>
+        <div class="example-text">"Literally just sitting in my bed scrolling reels and TikTok, or you know the other stuff hehe👀"</div>
+      </div>
+      <p>When he asks "other stuff like what?" — that's your signal. You caught him. Now send a teaser.</p>
+    `
+  },
+  {
+    icon: '🧠',
+    title: 'Brain vs. Dick',
+    content: `
+      <div class="mod-header">
+        <div class="mod-eyebrow">Module 3</div>
+        <div class="mod-title">The Brain vs. Dick Principle</div>
+        <div class="mod-subtitle">The single most important concept for selling PPVs. Understand this and everything else makes sense.</div>
+      </div>
+
+      <h2>The Core Concept</h2>
+      <p>Subs work like this: their blood is either in their <strong>brain</strong> or in their <strong>dick</strong>. <strong>Never both.</strong></p>
+      <ul>
+        <li>If a sub's blood is in his <strong>brain</strong> → he doesn't want to open PPVs. He's thinking about losing money.</li>
+        <li>If a sub's blood is in his <strong>dick</strong> → he will open PPVs. He's horny, not thinking clearly.</li>
+      </ul>
+      <p>Your job is to move the blood from his head to his dick — <strong>before</strong> you send the PPV.</p>
+
+      <h2>When He Doesn't Open: Two Options</h2>
+
+      <h3>Option 1 — Warm Him More</h3>
+      <p>Send more messages describing what's in the PPV and convincing him how good it is. Really make him feel like he's there with the model, experiencing her. Then remind him to open the PPV.</p>
+
+      <div class="example-box example-good">
+        <div class="example-label">✅ Warming More — Example</div>
+        <div class="example-text">"okay so it's literally 2 minutes of me just playing with them and I know you're a tit guy so... I don't know, it just feels really good on camera honestly. My nipples get super sensitive when I'm alone like this 🥵 just saying"</div>
+      </div>
+
+      <h3>Option 2 — Guilt Trip (Only for Invested Fans)</h3>
+      <p><strong>Only works</strong> if the sub is invested in the model — multiple conversations, has spent money before, comes back on different days. Never use on new subs.</p>
+
+      <div class="example-box example-good">
+        <div class="example-label">✅ Guilt Trip — Example</div>
+        <div class="example-text">"I thought you actually liked me... you literally started this and now you just leave me hanging? That kind of gives me anxiety honestly, like did I do something wrong? Do you not like me anymore? 🙁"<br><br>"As a bonus we can keep sexting after, I just wanted to share something intimate with you"</div>
+      </div>
+
+      <div class="callout">
+        <div class="callout-label">Important</div>
+        <p>After the guilt trip — <strong>keep sexting with him</strong>, but just don't send more videos. You told him it's not about the money. This makes him think "she genuinely cares."</p>
+      </div>
+
+      <h2>Situation Awareness</h2>
+      <ul>
+        <li><strong>Fan is at work?</strong> → Build tension through sexting. Don't send PPV yet. Get a tip for "when you finish work."</li>
+        <li><strong>Fan is in shower, about to cum?</strong> → Don't pitch a custom. Just sell him a quick PPV for what he wants right now. He won't wait 5 minutes.</li>
+        <li><strong>Fan is lonely and chatty?</strong> → Build relationship. Push sale over time. Instant replies crucial.</li>
+      </ul>
+    `
+  },
+  {
+    icon: '👤',
+    title: 'Fan Types & FTL',
+    content: `
+      <div class="mod-header">
+        <div class="mod-eyebrow">Module 4</div>
+        <div class="mod-title">Fan Types & FTL Subscribers</div>
+        <div class="mod-subtitle">Know who you're talking to in the first 5 minutes — or you lose them forever.</div>
+      </div>
+
+      <h2>Paid Fan vs. FTL Fan</h2>
+      <p>If the subscription status says <strong>$4.99/month</strong> → paid fan.<br>If it says <strong>Free or FTL</strong> → Free Trial Link fan. He paid nothing to get here.</p>
+
+      <div class="callout">
+        <div class="callout-label">FTL Reality</div>
+        <p>An FTL fan subscribes to <strong>30–50 models per day</strong>. He usually doesn't reply in DMs. If he does — you have <strong>5 minutes max</strong> to get his attention. After that, he's gone forever.</p>
+      </div>
+
+      <h2>What to Find Out in the First 7–10 Minutes</h2>
+      <ul>
+        <li><strong>How old is he?</strong></li>
+        <li><strong>What is he into?</strong></li>
+      </ul>
+      <p>That's all you need. Don't make it an interview. Get this information naturally through conversation, then tailor everything to him.</p>
+      <ul>
+        <li>Older fan → treat him a bit more gently</li>
+        <li>Likes ass → hit him with ass PPVs</li>
+        <li>Into construction → "Oh I bet you've got big strong hands"</li>
+        <li>Giga horny immediately → start selling now</li>
+      </ul>
+
+      <h2>Good Buying Signals</h2>
+      <ul>
+        <li>"Oh, what are you up to rn?"</li>
+        <li>"I'm just laying in bed, talking to you"</li>
+        <li>"Just looking at your pics, you're so hot"</li>
+      </ul>
+      <p>These mean he's in a position to do something — communicate like he's your boyfriend. Flirtatious and relaxed.</p>
+
+      <h2>Bad Buying Signals</h2>
+      <p>Slow response time, one-word answers, no engagement. Doesn't mean you can't sell — just means you need to work harder to convert him. Build rapport first, then attack.</p>
+
+      <h2>The 4 Steps for Any Sub</h2>
+      <ol>
+        <li>Figure out what he's into <strong>without directly asking</strong></li>
+        <li>When you don't know what to do — reply to his last message and add a follow-up question. Never lose traction.</li>
+        <li>Write PPV captions based on what he likes — if he likes tits, write a tit caption. Open rate goes up.</li>
+        <li>Never put him on a pedestal — treat him like a new guy you're talking to, not a king</li>
+      </ol>
+
+      <h2>Ask Where He Found You</h2>
+      <p>Ask early: <em>"So where'd you find my page and what intrigued you to sub to me?👀"</em> He'll tell you everything — and it tells you exactly what he's interested in.</p>
+    `
+  },
+  {
+    icon: '🔥',
+    title: 'PPV Pricing Ladders',
+    content: `
+      <div class="mod-header">
+        <div class="mod-eyebrow">Module 5</div>
+        <div class="mod-title">PPV Pricing Ladders</div>
+        <div class="mod-subtitle">Different fan types need different price strategies. Start too high and you lose the sale forever.</div>
+      </div>
+
+      <h2>Paid Fan Script Ladder</h2>
+      <p>Start at $26. If he opens fast, go higher on the next one.</p>
+      <ul>
+        <li>1st PPV → <strong>$26</strong></li>
+        <li>2nd PPV → <strong>$49</strong></li>
+        <li>3rd PPV → <strong>$69–89</strong> (if no objections go $89, if slow go $75)</li>
+        <li>4th PPV → <strong>$99</strong></li>
+        <li>5th–8th PPV → <strong>$199</strong> each</li>
+      </ul>
+      <div class="callout gold">
+        <div class="callout-label">Note</div>
+        <p>Doesn't always have to start at $26. Read the sub's budget and freestyle. You have the automatic script on CH.</p>
+      </div>
+
+      <h2>FTL Fan Script Ladder</h2>
+      <p>FTL fans are more price-sensitive. Start ultra-low. The first PPV activates the buying reflex.</p>
+      <ul>
+        <li>Free pictures → <strong>2–3 free</strong></li>
+        <li>Teaser video (15 sec) → <strong>free</strong></li>
+        <li>1st Video (45 sec–1 min) → <strong>$5–9</strong> (go as low as needed)</li>
+        <li>2nd Video (1 min) → <strong>$19</strong></li>
+        <li>3rd Video (1.5 min) → <strong>$39</strong></li>
+        <li>4th Video (2 min) → <strong>$69</strong></li>
+        <li>5th Video (2 min) → <strong>$99</strong></li>
+        <li>6th Video (2 min 20 sec) → <strong>$149</strong></li>
+        <li>7th–10th Video → <strong>$199</strong> each</li>
+      </ul>
+
+      <h2>Follow-Up After No Response</h2>
+      <p>You lose 100% of sales you don't follow up on. When a fan leaves you on read:</p>
+      <ul>
+        <li>"Am I not good enough for you??"</li>
+        <li>"Where did you goo… Not a good moment???"</li>
+        <li>"Did I mess something up? I'm so sorry…"</li>
+        <li>"Did I go overboard with the pricing?? Im so sorry.."</li>
+      </ul>
+
+      <h2>Once He's Opening PPVs — Keep Going</h2>
+      <p>Push PPVs every <strong>7–10 minutes</strong> when a fan is actively opening. Always assume worst case — he might randomly leave or finish. Never slow down when he's buying.</p>
+
+      <div class="callout green">
+        <div class="callout-label">Make It Personal</div>
+        <p>Fan likes anime? → "I was just watching One Piece, babe but I paused it to chat to you ❤️"<br>Fan likes action? → "Was watching a movie, paused it to talk to you"<br>The fan needs to feel like the content is recorded specifically for him.</p>
+      </div>
+    `
+  },
+  {
+    icon: '💰',
+    title: 'Custom Content',
+    content: `
+      <div class="mod-header">
+        <div class="mod-eyebrow">Module 6</div>
+        <div class="mod-title">Custom Content & Negotiating</div>
+        <div class="mod-subtitle">You can sell one video for $2,000–3,000 with the right approach.</div>
+      </div>
+
+      <h2>Pricing Customs</h2>
+      <ul>
+        <li><strong>Videos:</strong> Start at $1,000 minimum. Always aim high.</li>
+        <li><strong>Picture bundles:</strong> $400+</li>
+        <li>If unsure about pricing — ask in the discord before confirming</li>
+      </ul>
+
+      <div class="callout">
+        <div class="callout-label">First: Check the Model Sheet</div>
+        <p>Always check the model information first to confirm she can do the custom. If you're unsure — ask for help before committing.</p>
+      </div>
+
+      <h2>How to Close a Custom</h2>
+      <ol>
+        <li><strong>Confirm all the details</strong> — exactly what he wants, every spec</li>
+        <li><strong>Warm him up</strong> — describe how much he's going to love it, how sexy she'll make it</li>
+        <li><strong>Tease the bonus</strong> — tell him she'll add some bonus pics/videos as a surprise (don't say what they are)</li>
+        <li><strong>Then give the price</strong> — after he's excited, not before</li>
+      </ol>
+      <p>Keep <strong>ENERGY</strong> throughout so it doesn't feel like a transaction.</p>
+
+      <h2>When He Tries to Negotiate</h2>
+      <p>Guys will almost always try to negotiate. Make them feel guilty first:</p>
+
+      <div class="example-box example-good">
+        <div class="example-label">✅ Response to Negotiation</div>
+        <div class="example-text">"lol do you not value me at that price?? I know my value and I'm not a cheap girl babe… I'm sure you understand, don't treat me as one 😉"<br><br>"wowww… I put a lot of time and effort into these customs… do you not think I'm worth it? I promise you I'm going to make this the best video you've ever seen"</div>
+      </div>
+
+      <p>As a <strong>last resort</strong> — offer a small discount. But only after they've pushed back at least 1–2 times. Never give it immediately.</p>
+
+      <h2>Keeping Him From Finishing Too Early</h2>
+      <p>Once he opens PPVs and starts a sexting set — keep him going. Don't let him finish and end the session.</p>
+      <div class="example-box example-good">
+        <div class="example-label">✅ Keep Him Engaged</div>
+        <div class="example-text">"mmm rub that cock nice and slow for me… I don't want you cumming yet okay? I want to make sure we finish at the same time together 😏"<br><br>"I want you to impress me right now and prove to me how long you can last with me teasing you ;)"</div>
+      </div>
+    `
+  },
+  {
+    icon: '💬',
+    title: 'Objection Handling',
+    content: `
+      <div class="mod-header">
+        <div class="mod-eyebrow">Module 7</div>
+        <div class="mod-title">Objection Handling</div>
+        <div class="mod-subtitle">Every fan has objections. Handle them right and you still close the sale.</div>
+      </div>
+
+      <h2>"Too expensive"</h2>
+      <div class="example-box example-good">
+        <div class="example-label">✅ Response</div>
+        <div class="example-text">"hmm do you not think I'm worth it? I thought you really were serious about me and wanted to prove it… lol I guess not"<br><br>"So you're saying you don't want the real deal? I thought you wanted this… guess not…"</div>
+      </div>
+
+      <h2>"No money right now"</h2>
+      <div class="example-box example-good">
+        <div class="example-label">✅ Response</div>
+        <div class="example-text">"no stress, I'll save it for you 😉 when do you get paid next?"</div>
+      </div>
+      <p>Note his payday in the fan notes. Come back when the time is right.</p>
+
+      <h2>"Are you real? Are you a bot?"</h2>
+      <div class="callout">
+        <div class="callout-label">Critical — Never Break Character</div>
+        <p>NEVER admit you are a chatter or that AI is involved. Under ANY circumstances. A real girl finds this question funny.</p>
+      </div>
+      <div class="example-box example-good">
+        <div class="example-label">✅ Response</div>
+        <div class="example-text">"lol yeah?? what a question haha am I not real enough for you 😂"</div>
+      </div>
+
+      <h2>"I want to meet up"</h2>
+      <p>AT NO POINT can you arrange a meetup or take anything off the OnlyFans platform. Find the grey area.</p>
+      <div class="example-box example-good">
+        <div class="example-label">✅ Responses</div>
+        <div class="example-text">"why don't you prove to me you're serious about me here first? I'm actually looking for something long term and genuine here.. I'm not just a quick fuck 🙃"<br><br>"I'd really love to go on a date but I've had so many people who promise me the world and just want a quick fuck lol - can we just get to know each other here first?"<br><br>"I don't think you can keep up with me if we're fucking ;) why don't you show me you're not all talk and make me cum right this second?"</div>
+      </div>
+
+      <h2>When He Gets Rude</h2>
+      <div class="example-box example-good">
+        <div class="example-label">✅ Guilt Trip Response</div>
+        <div class="example-text">"Oh wow I thought I really found a normal person but you're the same like all other guys here, just wanting to fuck and being rude 😔"<br><br>"You're being too pushy and it's making me uncomfortable… it's giving me creepy vibes and I just lost my mood a bit…"</div>
+      </div>
+    `
+  },
+  {
+    icon: '🐋',
+    title: 'Whale Management',
+    content: `
+      <div class="mod-header">
+        <div class="mod-eyebrow">Module 8</div>
+        <div class="mod-title">Whale Management</div>
+        <div class="mod-subtitle">Yapping to whales is an investment. You invest 6 days of yapping and get a $1,500 script or $3,000 custom back.</div>
+      </div>
+
+      <h2>Why Whales Subscribe</h2>
+      <p>Lonely guys subscribe to OnlyFans because they get <strong>zero attention in real life</strong> — no dates, no hugs, no one who cares. They come for the content but <strong>stay when they fall in love with the personality</strong>.</p>
+      <p>You keep them spending by giving them just enough attention without going too far. Reply all the time, but not instantly. Call him your favourite. Tell him he's the only guy who treats you like a real human on here. <strong>But never tell him you love him.</strong></p>
+
+      <div class="callout">
+        <div class="callout-label">Power Position</div>
+        <p>Always keep him chasing you. If he thinks for one second the relationship is "equal" — you lose power. He'll start asking why they can't video call, why he doesn't get content for free, why they can't meet up.</p>
+      </div>
+
+      <h2>Make the Model Attainable</h2>
+      <p>Whales know they're never pulling a Margot Robbie. So you make the model feel "attainable" — like he might have a real shot in his mind:</p>
+      <ul>
+        <li>"She has no friends so she's very lonely"</li>
+        <li>"She works a crappy job so she's very broke"</li>
+        <li>"She has anxiety so she doesn't go out a lot"</li>
+        <li>"She likes all the things he likes"</li>
+      </ul>
+      <p>He thinks: <em>"Wow, this girl is hidden away from the world — I don't have to compete with other men for her."</em></p>
+
+      <h2>The Cooldown System</h2>
+      <p>After a whale spends a good amount — <strong>do NOT send PPVs again for X days</strong>. Your chats always need ENERGY. You have to genuinely care about him. You've got to have him smiling at his phone.</p>
+
+      <h2>Keeping Whales Engaged (Long-Term Topics)</h2>
+      <div class="tag-row">
+        <span class="tag">Music</span>
+        <span class="tag">Games</span>
+        <span class="tag">Food</span>
+        <span class="tag">TV Shows</span>
+        <span class="tag">Make him buy something</span>
+        <span class="tag">Gym progress</span>
+        <span class="tag">Career progress</span>
+        <span class="tag">Model as screensaver</span>
+        <span class="tag">Write him poems</span>
+        <span class="tag">Print a picture of model</span>
+      </div>
+
+      <h2>Whale Objections</h2>
+      <ul>
+        <li><strong>"You're only using me for money"</strong> → Play dumb. "I was just trying to have fun with you and share sexy videos."</li>
+        <li><strong>"I spend too much"</strong> → Play victim. "I only sent you what I thought you wanted."</li>
+        <li><strong>"Say you love me"</strong> → "I've been hurt before and want to take things slow."</li>
+        <li><strong>"Give me content for free"</strong> → Find a good deal, but only once in a long while.</li>
+      </ul>
+      <div class="callout gold">
+        <div class="callout-label">Always Remember</div>
+        <p>The model is always the victim. Every fight, every accusation — she's the one who got hurt.</p>
+      </div>
+    `
+  },
+  {
+    icon: '⚡',
+    title: 'Toxic Relationships & Tactics',
+    content: `
+      <div class="mod-header">
+        <div class="mod-eyebrow">Module 9</div>
+        <div class="mod-title">Toxic Relationship Tactics & Advanced Sales</div>
+        <div class="mod-subtitle">Keeping fans hooked long-term requires more than being nice. These are the advanced tactics.</div>
+      </div>
+
+      <h2>Don't Always Be Nice</h2>
+      <p>A lot of guys get the same treatment from every model — really nice, kind, caring. Giving the fan this is good... but not all the time.</p>
+
+      <div class="callout">
+        <div class="callout-label">Three Rules</div>
+        <p>
+          ❌ NEVER say "I love you"<br>
+          ❌ DON'T always be really nice to him<br>
+          ❌ DON'T always call him "babe"
+        </p>
+      </div>
+
+      <p>Start getting annoyed if the fan is being annoying. Don't submit to him. If you start <strong>small arguments</strong> with the fan at times, it keeps him in the chase — which is where he secretly enjoys being most. If you're nice all the time, he knows what's coming daily and gets bored.</p>
+      <p><strong>Excitement is the key and spark to every relationship.</strong></p>
+
+      <h2>The Yes Train</h2>
+      <p>Get the sub to agree with you as many times as possible. The more he says yes, the more his subconscious tells him to say yes. When you push the PPV — his subconscious is already on the YES TRAIN.</p>
+
+      <h2>Subscriber Renew</h2>
+      <p>Check if renew is ON or OFF. Always push to get it turned on:</p>
+      <div class="example-box example-good">
+        <div class="example-label">✅ Renew Scripts</div>
+        <div class="example-text">"I really love speaking with you but I can't help but notice you have renew off for me :( it makes me sad knowing you're leaving me soon… can you turn it back on?"<br><br>"I was about to get more serious with you but I can see you have renew off… turn it back on so I can give you that VIP treatment 😏"</div>
+      </div>
+
+      <h2>Passenger vs. Driver</h2>
+      <p>Always be the <strong>driver</strong> of the conversation, not the passenger. When he asks "how was your day?" — take control and steer toward where you want to go.</p>
+      <div class="example-box example-good">
+        <div class="example-label">✅ Driver Response</div>
+        <div class="example-text">Fan: "how was your day?"<br>Model: "I've been to the gym, and I just got out the shower 💦 [sends teaser]"</div>
+      </div>
+
+      <h2>Mirroring</h2>
+      <p>Replicate the energy of the sub. Match their message speed, length, and tone. But don't be dry even if he's dry — be a yapper, full of energy. Some guys are just non-chalant and you can't change that.</p>
+      <p>If a new sub comes in at a 5/10 on the excitement scale and you come in at 10/10 — you scare them off. Start at 7/10 and build up over time.</p>
+    `
+  },
+  {
+    icon: '🔄',
+    title: 'Shift Handoff & Rules',
+    content: `
+      <div class="mod-header">
+        <div class="mod-eyebrow">Module 10</div>
+        <div class="mod-title">Shift Handoff & Final Rules</div>
+        <div class="mod-subtitle">A good handoff protects the fan vibe. A bad handoff costs money. These are the rules you never break.</div>
+      </div>
+
+      <h2>Why Handoffs Matter</h2>
+      <p>If a fan has built a connection with you and the next chatter knows nothing about it, the fan immediately notices. He senses that "she" forgot about him. Trust destroyed instantly.</p>
+      <p>There are 3 chatters per whale per day — all want money, but none want to actually talk. From the whale's perspective: the girl only tries to get money from him 3x a day, every day. He eventually just leaves.</p>
+
+      <h2>What You Must Hand Over</h2>
+      <ul>
+        <li><strong>Active conversations</strong> — fans you're currently in an open thread with</li>
+        <li><strong>Open PPV attempts</strong> — fans who were offered a PPV but haven't bought yet</li>
+        <li><strong>Whale status</strong> — who are the top spenders, what's their current vibe, cooldown status</li>
+        <li><strong>Fan details</strong> — job, hobbies, name/nickname, city (timezone), kinks, what he dislikes</li>
+        <li><strong>Mood</strong> — was he in a good mood today? Hot or cold right now?</li>
+      </ul>
+
+      <div class="callout green">
+        <div class="callout-label">Handoff Format</div>
+        <p>Fan name / Type (Whale/Regular) / Last conversation topic / Open PPVs / Key details / Current vibe</p>
+      </div>
+
+      <h2>The Absolute Rules</h2>
+      <ul>
+        <li><strong>NEVER</strong> admit you are a chatter or that AI is involved — under any circumstances</li>
+        <li><strong>NEVER</strong> arrange a meetup or discuss addresses, times, locations</li>
+        <li><strong>NEVER</strong> say "I love you" to any fan</li>
+        <li><strong>NEVER</strong> give content for free (except as a rare strategic exception for whales)</li>
+        <li><strong>NEVER</strong> push PPV before warm-up is done</li>
+        <li><strong>NEVER</strong> end your shift without a handoff for active fans</li>
+        <li><strong>NEVER</strong> reveal real information about the creator</li>
+      </ul>
+
+      <h2>What Makes a Grade-S Chatter</h2>
+      <ul>
+        <li>You can pull <strong>$2,000+ per shift</strong> and keep customers coming back</li>
+        <li>You know how to read each fan type within 5 minutes</li>
+        <li>You never lose traction — always a follow-up question, always energy</li>
+        <li>Your notes are detailed enough that any chatter can continue seamlessly</li>
+        <li>You treat every subscriber like a potential whale</li>
+      </ul>
+
+      <div class="callout">
+        <div class="callout-label">Final Thought</div>
+        <p>This is a skill set you will have for the rest of your life. Whatever your reason for becoming a chatter — you might as well become the best possible chatter in this industry. The reward is worth it.</p>
+      </div>
+    `
+  }
+];
+
+let activeModule = 0;
+
+function render() {
+  const list = document.getElementById('moduleList');
+  list.innerHTML = MODULES.map((m, i) => `
+    <button class="module-btn ${i === activeModule ? 'active' : ''}" onclick="showModule(${i})">
+      <span class="mod-num">${String(i + 1).padStart(2, '0')}</span>
+      <span>${m.icon} ${m.title}</span>
+    </button>
+  `).join('');
+
+  const area = document.getElementById('contentArea');
+  const m = MODULES[activeModule];
+  const prevBtn = activeModule > 0
+    ? `<button class="nav-btn" onclick="showModule(${activeModule - 1})">← ${MODULES[activeModule - 1].title}</button>`
+    : '<span></span>';
+  const nextBtn = activeModule < MODULES.length - 1
+    ? `<button class="nav-btn primary" onclick="showModule(${activeModule + 1})">${MODULES[activeModule + 1].title} →</button>`
+    : '<span></span>';
+
+  area.innerHTML = m.content + `<div class="nav-footer">${prevBtn}${nextBtn}</div>`;
+}
+
+function showModule(index) {
+  activeModule = index;
+  render();
+  document.getElementById('contentArea').scrollTop = 0;
+}
+
+render();
+</script>
+</body>
+</html>

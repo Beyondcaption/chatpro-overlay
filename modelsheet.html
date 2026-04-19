@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
+<title>Model Sheet</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#111114; --s1:#161619; --s2:#1e1e23; --s3:#252530; --b1:#2e2e38; --b2:#3d3d4a;
+  --t1:#f0f0f5; --t2:#9898b0; --t3:#55556a; --t4:#33333f;
+  --pink:#ff4d8f; --pink-dim:rgba(255,77,143,0.1);
+  --gold:#ffb547; --green:#3dd68c; --blue:#5b8ef0; --purple:#b47aff;
+  --r:10px; --r-sm:6px;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:var(--bg); color:var(--t1); font-size:13px; }
+
+.titlebar { -webkit-app-region:drag; height:36px; background:var(--s1); border-bottom:1px solid var(--b1); display:flex; align-items:center; justify-content:space-between; padding:0 14px; flex-shrink:0; }
+.tb-left { display:flex; align-items:center; gap:8px; pointer-events:none; }
+.tb-name { font-size:13px; font-weight:700; color:var(--t1); }
+.tb-sub { font-size:10px; color:var(--t3); }
+.tb-right { -webkit-app-region:no-drag; }
+.tb-btn { background:none; border:none; color:var(--t3); cursor:pointer; font-size:14px; padding:2px 5px; border-radius:4px; }
+.tb-btn:hover { color:#ff5252; background:var(--s2); }
+
+.layout { display:flex; height:calc(100% - 36px); overflow:hidden; }
+
+.sidebar { width:180px; flex-shrink:0; background:var(--s1); border-right:1px solid var(--b1); overflow-y:auto; padding:8px 6px; }
+.section-btn { width:100%; text-align:left; background:none; border:none; border-radius:var(--r-sm); color:var(--t2); font-family:'Instrument Sans',sans-serif; font-size:11px; padding:8px 10px; cursor:pointer; margin-bottom:2px; transition:all 0.15s; }
+.section-btn:hover { background:var(--s2); color:var(--t1); }
+.section-btn.active { background:var(--pink-dim); color:var(--pink); }
+
+.content { flex:1; overflow-y:auto; padding:20px 24px; }
+.content::-webkit-scrollbar { width:3px; }
+.content::-webkit-scrollbar-thumb { background:var(--b2); border-radius:2px; }
+
+.section-panel { display:none; }
+.section-panel.active { display:block; }
+
+.section-header { margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--b1); }
+.section-title { font-size:16px; font-weight:700; color:var(--t1); }
+.section-subtitle { font-size:11px; color:var(--t3); margin-top:3px; }
+
+.kv-table { width:100%; border-collapse:collapse; margin-bottom:16px; }
+.kv-table tr { border-bottom:1px solid var(--b1); }
+.kv-table tr:last-child { border-bottom:none; }
+.kv-table td { padding:7px 10px; font-size:12px; vertical-align:top; }
+.kv-table td:first-child { color:var(--t3); width:40%; font-size:11px; white-space:nowrap; }
+.kv-table td:last-child { color:var(--t1); }
+.kv-table tr:hover { background:var(--s2); }
+
+.free-text { font-size:12px; color:var(--t2); line-height:1.75; white-space:pre-wrap; }
+
+.callout { background:var(--s2); border:1px solid var(--b1); border-left:3px solid var(--pink); border-radius:0 var(--r-sm) var(--r-sm) 0; padding:12px 14px; margin:12px 0; }
+.callout.gold { border-left-color:var(--gold); }
+.callout.red { border-left-color:#ff5252; }
+.callout-label { font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--pink); margin-bottom:5px; }
+.callout.gold .callout-label { color:var(--gold); }
+.callout.red .callout-label { color:#ff5252; }
+.callout p { font-size:12px; color:var(--t2); margin:0; line-height:1.6; }
+
+.empty { color:var(--t4); font-size:12px; font-style:italic; padding:20px 0; }
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <div class="tb-left">
+    <span class="tb-name" id="tbName">Model Sheet</span>
+    <span class="tb-sub" id="tbSub"></span>
+  </div>
+  <div class="tb-right">
+    <button class="tb-btn" onclick="window.chatpro.closeModelSheet()">✕</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="content" id="content"></div>
+</div>
+
+<script>
+const SECTIONS = [
+  { key: 'general',     icon: '👤', label: 'General Info' },
+  { key: 'background',  icon: '📖', label: 'Background' },
+  { key: 'favorites',   icon: '⭐', label: 'Favorites' },
+  { key: 'personality', icon: '🧠', label: 'Personality' },
+  { key: 'cosplay',     icon: '🎭', label: 'Cosplay' },
+  { key: 'content',     icon: '🔒', label: 'Content Info' },
+];
+
+let activeSection = 0;
+let sheetData = {};
+let profileName = '';
+
+function init() {
+  try {
+    var raw = localStorage.getItem('modelSheetData');
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      sheetData = parsed.sheet_data || {};
+      profileName = parsed.name || 'Model Sheet';
+      document.getElementById('tbName').textContent = profileName;
+      document.getElementById('tbSub').textContent = parsed.age ? parsed.age + ' years' : '';
+    }
+  } catch(e) {}
+  render();
+}
+
+function render() {
+  // Sidebar
+  document.getElementById('sidebar').innerHTML = SECTIONS.map((s, i) => `
+    <button class="section-btn ${i === activeSection ? 'active' : ''}" onclick="showSection(${i})">
+      ${s.icon} ${s.label}
+    </button>
+  `).join('');
+
+  // Content
+  var s = SECTIONS[activeSection];
+  var data = sheetData[s.key] || '';
+  var html = '<div class="section-header"><div class="section-title">' + s.icon + ' ' + s.label + '</div></div>';
+
+  if (!data) {
+    html += '<div class="empty">No information entered for this section yet.</div>';
+  } else {
+    html += renderSection(s.key, data);
+  }
+
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderSection(key, data) {
+  if (key === 'background') {
+    return '<div class="free-text">' + escHtml(data) + '</div>';
+  }
+
+  // Try to parse as key:value lines
+  var lines = data.split('\n').filter(function(l) { return l.trim(); });
+  var hasKV = lines.some(function(l) { return l.includes(':'); });
+
+  if (hasKV) {
+    var rows = lines.map(function(l) {
+      var idx = l.indexOf(':');
+      if (idx === -1) return '<tr><td colspan="2">' + escHtml(l) + '</td></tr>';
+      var k = l.substring(0, idx).trim();
+      var v = l.substring(idx + 1).trim();
+      return '<tr><td>' + escHtml(k) + '</td><td>' + escHtml(v) + '</td></tr>';
+    }).join('');
+    var html = '<table class="kv-table">' + rows + '</table>';
+
+    if (key === 'content') {
+      html = '<div class="callout red"><div class="callout-label">Internal Only — Do Not Share</div><p>This information is for chatters only and must never be shared outside the team.</p></div>' + html;
+    }
+    return html;
+  }
+
+  return '<div class="free-text">' + escHtml(data) + '</div>';
+}
+
+function showSection(i) {
+  activeSection = i;
+  render();
+  document.getElementById('content').scrollTop = 0;
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+init();
+</script>
+</body>
+</html>
