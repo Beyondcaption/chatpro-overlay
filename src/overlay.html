@@ -443,6 +443,7 @@ async function generateReplies() {
   }
   if (!apiKey) { window.chatpro.openSettings(); return; }
 
+  clearTimeout(translateTimer); // cancel any pending DeepL update while viewing results
   lastDeText = de;
   var btn = document.getElementById('genBtn');
   var txt = document.getElementById('genBtnText');

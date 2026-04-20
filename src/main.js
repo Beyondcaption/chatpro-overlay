@@ -88,7 +88,9 @@ let currentUser = null;
 // ── looksGerman ──
 function looksGerman(text) {
   if (/[äöüÄÖÜß]/.test(text)) return true;
-  const words = /(\s|^)(ich|du|er|sie|es|wir|ihr|ein|eine|der|die|das|ist|war|hat|haben|und|für|mit|nicht|aber|auch|noch|schon|wie|was|wo|wann|wenn|dann|doch|mal|nur|so|ja|nein|bitte|danke|hallo|hey|ach|okay|auf|von|zu|im|am|an|bei|nach|vor|sehr|viel|mehr|schön|gut|toll|geil|krass|alter|digga|echt|genau|klar|leider|vielleicht|eigentlich|irgendwie|einfach|immer|nie|alles|nichts|jetzt|heute|morgen|gestern|hier|da|warum|wieso|wer|mein|meine|dein|deine|sein|kein|keine)(\s|$|[?!.,])/i;
+  // Only clearly German-only words — excludes English false positives:
+  // removed: er,sie,es,ist,war,hat,haben,was,wo,da,mal,nur,so,ja,nein,hey,okay,am,an,bei,gut,alter,wer,hier,nie,im,viel,ach
+  const words = /(\s|^)(ich|du|wir|ihr|ein|eine|der|die|das|und|für|mit|nicht|aber|auch|noch|schon|wie|wann|wenn|dann|doch|bitte|danke|hallo|auf|von|zu|nach|vor|sehr|mehr|schön|toll|geil|krass|digga|echt|genau|klar|leider|vielleicht|eigentlich|irgendwie|einfach|immer|alles|nichts|jetzt|heute|morgen|gestern|warum|wieso|mein|meine|dein|deine|sein|kein|keine|ne|nee)(\s|$|[?!.,])/i;
   return words.test(text);
 }
 
@@ -103,6 +105,8 @@ function watchClipboard() {
       const text = clipboard.readText().trim();
       if (text && text !== lastClipboard && text.length > 2 && text.length < 3000) {
         lastClipboard = text;
+        // If overlay is open and focused, user is copying from within it — don't re-trigger
+        if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible() && overlayWindow.isFocused()) return;
         if (looksGerman(text)) showOverlay(text);
       }
     } catch(e) {}
