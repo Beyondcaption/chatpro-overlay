@@ -166,7 +166,10 @@ function showOverlay(autoText) {
     overlayWindow.focus();
     overlayWindow.setAlwaysOnTop(true, 'screen-saver');
     overlayWindow.webContents.send('overlay-shown');
-    if (autoText) overlayWindow.webContents.send('set-de-text', autoText);
+    if (autoText) {
+      lastClipboard = autoText;
+      overlayWindow.webContents.send('set-de-text', autoText);
+    }
     return;
   }
 
@@ -445,7 +448,9 @@ function registerHotkey() {
   try {
     globalShortcut.register(hk, () => showOverlay(null));
   } catch(e) {
-    globalShortcut.register('CommandOrControl+Shift+T', () => showOverlay(null));
+    if (hk !== 'CommandOrControl+Shift+T') {
+      try { globalShortcut.register('CommandOrControl+Shift+T', () => showOverlay(null)); } catch(e2) {}
+    }
   }
 }
 

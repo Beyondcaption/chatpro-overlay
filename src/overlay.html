@@ -329,29 +329,39 @@ init();
 // ── Creator Profiles ──
 async function fetchProfiles() {
   var sel = document.getElementById('profileSelect');
-  try {
-    var data = await ipcCall(window.chatpro.getCreatorProfiles(), 8000);
-    sel.options[0].textContent = '-- Select Creator Profile --';
-    if (data && data.success && data.profiles && data.profiles.length) {
-      creatorProfiles = data.profiles;
-      creatorProfiles.forEach(function(p) {
-        var opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = p.name + (p.age ? ' (' + p.age + ')' : '');
-        sel.appendChild(opt);
-      });
-      try {
-        var lastId = localStorage.getItem('lastProfileId');
-        if (lastId && creatorProfiles.find(function(p) { return p.id === lastId; })) {
-          sel.value = lastId;
-          selectProfile(lastId);
-        }
-      } catch(e) {}
-    } else {
-      sel.options[0].textContent = '⚠ Profiles unavailable';
+  var loaded = false;
+  // Retry up to 3 times — Railway can take 30s to wake from cold start
+  for (var attempt = 1; attempt <= 3 && !loaded; attempt++) {
+    if (attempt > 1) {
+      sel.options[0].textContent = '⏳ Connecting... (' + attempt + '/3)';
+      await new Promise(function(r) { setTimeout(r, 8000); });
     }
-  } catch(e) {
-    if (sel && sel.options[0]) sel.options[0].textContent = '⚠ Could not load profiles';
+    try {
+      var data = await ipcCall(window.chatpro.getCreatorProfiles(), 10000);
+      if (data && data.success && data.profiles && data.profiles.length) {
+        sel.options[0].textContent = '-- Select Creator Profile --';
+        creatorProfiles = data.profiles;
+        creatorProfiles.forEach(function(p) {
+          var opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name + (p.age ? ' (' + p.age + ')' : '');
+          sel.appendChild(opt);
+        });
+        try {
+          var lastId = localStorage.getItem('lastProfileId');
+          if (lastId && creatorProfiles.find(function(p) { return p.id === lastId; })) {
+            sel.value = lastId;
+            selectProfile(lastId);
+          }
+        } catch(e) {}
+        loaded = true;
+      } else if (data && data.success === false) {
+        break; // Server responded — profiles just not available
+      }
+    } catch(e) {}
+  }
+  if (!loaded) {
+    if (sel && sel.options[0]) sel.options[0].textContent = '⚠ Profiles unavailable';
   }
 }
 
@@ -429,25 +439,26 @@ async function doDeepL(text) {
     }
   } catch(e) {}
 
-  // Fallback: direct DeepL API with stored key
+  // Fallback: direct DeepL API — try both endpoints (key type detection unreliable for older keys)
   if (deeplKey) {
-    try {
-      var isFree = deeplKey.endsWith(':fx');
-      var endpoint = isFree
-        ? 'https://api-free.deepl.com/v2/translate'
-        : 'https://api2.deepl.com/v2/translate';
-      var res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Authorization': 'DeepL-Auth-Key ' + deeplKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: [text], target_lang: 'EN' }),
-        signal: AbortSignal.timeout(8000)
-      });
-      var data = await res.json();
-      if (data && data.translations && data.translations[0]) {
-        txt.textContent = data.translations[0].text;
-        return;
-      }
-    } catch(e) {}
+    var endpoints = deeplKey.endsWith(':fx')
+      ? ['https://api-free.deepl.com/v2/translate']
+      : ['https://api2.deepl.com/v2/translate', 'https://api-free.deepl.com/v2/translate'];
+    for (var ei = 0; ei < endpoints.length; ei++) {
+      try {
+        var res = await fetch(endpoints[ei], {
+          method: 'POST',
+          headers: { 'Authorization': 'DeepL-Auth-Key ' + deeplKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: [text], target_lang: 'EN' }),
+          signal: AbortSignal.timeout(6000)
+        });
+        var data = await res.json();
+        if (data && data.translations && data.translations[0]) {
+          txt.textContent = data.translations[0].text;
+          return;
+        }
+      } catch(e) {}
+    }
   }
 
   box.classList.remove('visible');

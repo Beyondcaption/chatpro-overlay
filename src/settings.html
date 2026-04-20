@@ -59,6 +59,17 @@ h1 { font-size:15px; font-weight:700; color:var(--t2); margin-bottom:20px; }
   <div class="divider"></div>
 
   <div class="section">
+    <div class="section-label">DeepL API Key</div>
+    <div class="field">
+      <div class="field-label">DeepL Key (optional)</div>
+      <input class="input" type="password" id="deeplKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx" />
+      <div class="field-sub">Free key ends with <strong style="color:var(--t2)">:fx</strong> — get one at <a href="#" onclick="window.chatpro.openUrl('https://www.deepl.com/pro-api')" style="color:var(--pink);">deepl.com/pro-api</a></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
     <div class="section-label">Auto-detect Clipboard</div>
     <div class="toggle-row">
       <span class="toggle-label">Automatically detect German messages</span>
@@ -88,6 +99,7 @@ async function init() {
   try {
     var s = await window.chatpro.getSettings();
     document.getElementById('apiKey').value = s.apiKey || '';
+    document.getElementById('deeplKey').value = s.deeplKey || '';
     document.getElementById('hotkey').value = s.hotkey || 'CommandOrControl+Shift+T';
     autoDetect = s.autoDetect !== false;
     updateToggle();
@@ -106,8 +118,9 @@ function updateToggle() {
 
 async function saveSettings() {
   var apiKey = document.getElementById('apiKey').value.trim();
+  var deeplKey = document.getElementById('deeplKey').value.trim();
   var hotkey = document.getElementById('hotkey').value.trim() || 'CommandOrControl+Shift+T';
-  await window.chatpro.saveSettings({ apiKey: apiKey, hotkey: hotkey, autoDetect: autoDetect });
+  await window.chatpro.saveSettings({ apiKey: apiKey, deeplKey: deeplKey, hotkey: hotkey, autoDetect: autoDetect });
   var msg = document.getElementById('saveMsg');
   msg.style.display = 'block';
   setTimeout(function() { msg.style.display = 'none'; }, 2000);
