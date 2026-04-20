@@ -176,7 +176,7 @@ html,body { height:100%; font-family:'Instrument Sans','Segoe UI',system-ui,sans
     <div class="profile-row">
       <div class="profile-dot" id="profileDot"></div>
       <select class="profile-select" id="profileSelect" onchange="selectProfile(this.value)">
-        <option value="">— Select Creator Profile —</option>
+        <option value="">Loading profiles...</option>
       </select>
       <button class="tb-btn" id="sheetBtn" onclick="openSheet()" title="Model Sheet" style="display:none;font-size:12px;padding:4px 7px;flex-shrink:0;">ℹ️</button>
     </div>
@@ -245,7 +245,7 @@ html,body { height:100%; font-family:'Instrument Sans','Segoe UI',system-ui,sans
 <script>
 // ── State ──
 let apiKey   = '';
-let deeplKey = '';
+let deeplKey = '13d024f8-13bc-45cb-b60b-b4e8988492c0';
 let activeGoal = null;
 let yapperMode = false;
 let creatorProfiles = [];
@@ -279,7 +279,7 @@ async function init() {
   try {
     const settings = await window.chatpro.getSettings();
     apiKey   = settings.apiKey   || '';
-    deeplKey = settings.deeplKey || '';
+    deeplKey = settings.deeplKey || deeplKey;
     const hk = (settings.hotkey || 'CommandOrControl+Shift+T')
       .replace('CommandOrControl', 'Ctrl').replace('Command', 'Cmd');
     document.getElementById('hotkeyLabel').textContent = hk;
@@ -317,11 +317,12 @@ init();
 
 // ── Creator Profiles ──
 async function fetchProfiles() {
+  var sel = document.getElementById('profileSelect');
   try {
     var data = await window.chatpro.getCreatorProfiles();
-    if (data.success && data.profiles && data.profiles.length) {
+    sel.options[0].textContent = '-- Select Creator Profile --';
+    if (data && data.success && data.profiles && data.profiles.length) {
       creatorProfiles = data.profiles;
-      var sel = document.getElementById('profileSelect');
       creatorProfiles.forEach(function(p) {
         var opt = document.createElement('option');
         opt.value = p.id;
@@ -336,20 +337,10 @@ async function fetchProfiles() {
         }
       } catch(e) {}
     } else {
-      var sel = document.getElementById('profileSelect');
-      var opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = '⚠ Profiles unavailable';
-      opt.disabled = true;
-      sel.appendChild(opt);
+      sel.options[0].textContent = '⚠ Profiles unavailable';
     }
   } catch(e) {
-    var sel = document.getElementById('profileSelect');
-    var opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = '⚠ Profiles unavailable';
-    opt.disabled = true;
-    sel.appendChild(opt);
+    if (sel && sel.options[0]) sel.options[0].textContent = '⚠ Could not load profiles';
   }
 }
 
@@ -420,15 +411,13 @@ async function doDeepL(text) {
   try {
     // Via IPC through main process — bypasses CORS restrictions in Electron
     var result = await window.chatpro.deeplTranslate({ text: text, key: deeplKey });
-    if (result && result.ok) {
+    if (result && result.ok && result.text) {
       txt.textContent = result.text;
     } else {
-      txt.textContent = '(Übersetzung nicht verfügbar)';
-      console.error('[DeepL]', result && result.error);
+      box.classList.remove('visible');
     }
   } catch(e) {
-    txt.textContent = '(Übersetzung nicht verfügbar)';
-    console.error('[DeepL IPC]', e.message);
+    box.classList.remove('visible');
   }
 }
 
