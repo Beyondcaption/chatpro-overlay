@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.anthropic.com https://api.deepl.com https://api2.deepl.com https://api-free.deepl.com https://fonts.googleapis.com https://fonts.gstatic.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.anthropic.com https://api.deepl.com https://api2.deepl.com https://api-free.deepl.com https://fonts.googleapis.com https://fonts.gstatic.com https://monitoring-relay-production.up.railway.app;">
 <title>ChatPro</title>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -443,7 +443,7 @@ async function doDeepL(text) {
   if (deeplKey) {
     var endpoints = deeplKey.endsWith(':fx')
       ? ['https://api-free.deepl.com/v2/translate']
-      : ['https://api2.deepl.com/v2/translate', 'https://api-free.deepl.com/v2/translate'];
+      : ['https://api.deepl.com/v2/translate', 'https://api2.deepl.com/v2/translate'];
     for (var ei = 0; ei < endpoints.length; ei++) {
       try {
         var res = await fetch(endpoints[ei], {

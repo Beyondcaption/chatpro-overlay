@@ -563,16 +563,22 @@ ipcMain.handle('get-api-key',   () => store.get('apiKey', ''));
 ipcMain.handle('get-deepl-key', () => store.get('deeplKey', ''));
 
 // Fetch creator profiles — token stays in main process, never reaches renderer
-ipcMain.handle('get-creator-profiles', async () => {
-  try {
-    const res = await fetch(`${SERVER_URL}/api/creator-profiles`, {
-      headers: { 'x-app-token': APP_TOKEN },
-      signal: AbortSignal.timeout(8000)
+ipcMain.handle('get-creator-profiles', () => {
+  const https = require('https');
+  return new Promise((resolve) => {
+    const req = https.get(`${SERVER_URL}/api/creator-profiles`, {
+      headers: { 'x-app-token': APP_TOKEN }
+    }, (res) => {
+      let body = '';
+      res.on('data', (c) => body += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch(e) { resolve({ success: false, profiles: [] }); }
+      });
     });
-    return await res.json();
-  } catch(e) {
-    return { success: false, profiles: [] };
-  }
+    req.on('error', () => resolve({ success: false, profiles: [] }));
+    req.setTimeout(8000, () => { req.destroy(); resolve({ success: false, profiles: [] }); });
+  });
 });
 
 ipcMain.handle('stealthLogin', async (event, { username, password }) => {
@@ -599,18 +605,29 @@ ipcMain.handle('stealthLogin', async (event, { username, password }) => {
 });
 
 // DeepL translation — proxied through Railway server, key never in binary
-ipcMain.handle('deepl-translate', async (event, { text }) => {
-  try {
-    const res = await fetch(`${SERVER_URL}/api/deepl`, {
+ipcMain.handle('deepl-translate', (event, { text }) => {
+  const https = require('https');
+  const parsedUrl = new URL(`${SERVER_URL}/api/deepl`);
+  const body = JSON.stringify({ text });
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: parsedUrl.hostname,
+      path: parsedUrl.pathname,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
-      body: JSON.stringify({ text }),
-      signal: AbortSignal.timeout(8000)
+      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'Content-Length': Buffer.byteLength(body) }
+    }, (res) => {
+      let data = '';
+      res.on('data', (c) => data += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch(e) { resolve({ ok: false }); }
+      });
     });
-    return await res.json();
-  } catch(e) {
-    return { ok: false, error: e.message };
-  }
+    req.on('error', () => resolve({ ok: false }));
+    req.setTimeout(8000, () => { req.destroy(); resolve({ ok: false }); });
+    req.write(body);
+    req.end();
+  });
 });
 
 ipcMain.handle('copy-to-clipboard', (e, text) => {
