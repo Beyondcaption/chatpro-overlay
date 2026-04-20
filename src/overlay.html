@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.anthropic.com https://api.deepl.com https://api-free.deepl.com https://fonts.googleapis.com https://fonts.gstatic.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.anthropic.com https://api.deepl.com https://api2.deepl.com https://api-free.deepl.com https://fonts.googleapis.com https://fonts.gstatic.com;">
 <title>ChatPro</title>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -276,11 +276,33 @@ const GOAL_PROMPTS = {
 
 // ── Init ──
 async function init() {
+  // Register IPC listeners FIRST before any awaits — events can arrive immediately
+  window.chatpro.onOverlayShown(function() {
+    activeGoal = null;
+    document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
+    document.getElementById('moodBanner').className = 'mood-banner';
+    lastMood = null;
+  });
+
+  window.chatpro.onSetDeText(function(text) {
+    var el = document.getElementById('deInput');
+    el.value = text;
+    autosize(el);
+    var lbl = document.getElementById('autoLabel');
+    lbl.textContent = '← auto-detected';
+    setTimeout(function() { lbl.textContent = ''; }, 2000);
+    document.getElementById('enInput').focus();
+    scheduleTranslate();
+  });
+
+  renderTemplates();
+  fetchProfiles();
+
   try {
-    const settings = await window.chatpro.getSettings();
+    var settings = await window.chatpro.getSettings();
     apiKey   = settings.apiKey   || '';
     deeplKey = settings.deeplKey || deeplKey;
-    const hk = (settings.hotkey || 'CommandOrControl+Shift+T')
+    var hk = (settings.hotkey || 'CommandOrControl+Shift+T')
       .replace('CommandOrControl', 'Ctrl').replace('Command', 'Cmd');
     document.getElementById('hotkeyLabel').textContent = hk;
   } catch(e) {}
@@ -291,28 +313,6 @@ async function init() {
     yb.classList.add('active');
     yb.textContent = '⚡ Yapper ON';
   }
-
-  renderTemplates();
-
-  window.chatpro.onOverlayShown(function() {
-    activeGoal = null;
-    document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
-    document.getElementById('moodBanner').className = 'mood-banner';
-    lastMood = null;
-  });
-
-  window.chatpro.onSetDeText(function(text) {
-    const el = document.getElementById('deInput');
-    el.value = text;
-    autosize(el);
-    const lbl = document.getElementById('autoLabel');
-    lbl.textContent = '← auto-detected';
-    setTimeout(function() { lbl.textContent = ''; }, 2000);
-    document.getElementById('enInput').focus();
-    scheduleTranslate();
-  });
-
-  fetchProfiles();
 }
 init();
 
@@ -409,17 +409,38 @@ async function doDeepL(text) {
   var txt = document.getElementById('deTranslationText');
   box.classList.add('visible');
   txt.textContent = '...';
+
+  // Try Railway proxy first (no key exposed)
   try {
-    // Via IPC through main process — bypasses CORS restrictions in Electron
-    var result = await window.chatpro.deeplTranslate({ text: text, key: deeplKey });
+    var result = await window.chatpro.deeplTranslate({ text: text });
     if (result && result.ok && result.text) {
       txt.textContent = result.text;
-    } else {
-      box.classList.remove('visible');
+      return;
     }
-  } catch(e) {
-    box.classList.remove('visible');
+  } catch(e) {}
+
+  // Fallback: direct DeepL API with stored key
+  if (deeplKey) {
+    try {
+      var isFree = deeplKey.endsWith(':fx');
+      var endpoint = isFree
+        ? 'https://api-free.deepl.com/v2/translate'
+        : 'https://api2.deepl.com/v2/translate';
+      var res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Authorization': 'DeepL-Auth-Key ' + deeplKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: [text], target_lang: 'EN' }),
+        signal: AbortSignal.timeout(8000)
+      });
+      var data = await res.json();
+      if (data && data.translations && data.translations[0]) {
+        txt.textContent = data.translations[0].text;
+        return;
+      }
+    } catch(e) {}
   }
+
+  box.classList.remove('visible');
 }
 
 // ── Mood ──

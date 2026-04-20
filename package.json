@@ -1,6 +1,6 @@
 {
   "name": "chatpro-overlay",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "ChatPro — German reply overlay for OnlyFans chatters",
   "main": "src/main.js",
   "scripts": {

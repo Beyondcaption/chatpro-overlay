@@ -32,38 +32,28 @@ const store = {
 // ── GitHub update checker ──
 function checkForUpdates(silent) {
   if (silent === undefined) silent = true;
-  var https = require('https');
-  var options = {
-    hostname: 'api.github.com',
-    path: '/repos/Beyondcaption/chatpro-overlay/releases/latest',
-    headers: { 'User-Agent': 'ChatPro-Overlay' }
-  };
-  https.get(options, function(res) {
-    var body = '';
-    res.on('data', function(chunk) { body += chunk; });
-    res.on('end', function() {
-      try {
-        var data = JSON.parse(body);
-        var latest = data.tag_name || '';
-        var current = 'v' + app.getVersion();
-        if (latest && latest !== current) {
-          dialog.showMessageBox({
-            type: 'info',
-            title: 'ChatPro Update',
-            message: 'Version ' + latest + ' available!',
-            detail: 'Download now?',
-            buttons: ['Yes', 'Later']
-          }).then(function(r) {
-            if (r.response === 0) {
-              shell.openExternal('https://github.com/Beyondcaption/chatpro-overlay/releases/latest');
-            }
-          });
-        } else if (!silent) {
-          dialog.showMessageBox({ type: 'info', title: 'ChatPro', message: 'Latest version installed.', buttons: ['OK'] });
+  fetch('https://api.github.com/repos/Beyondcaption/chatpro-overlay/releases/latest', {
+    headers: { 'User-Agent': 'ChatPro-Overlay' },
+    signal: AbortSignal.timeout(8000)
+  }).then(function(res) { return res.json(); }).then(function(data) {
+    var latest = data.tag_name || '';
+    var current = 'v' + app.getVersion();
+    if (latest && latest !== current) {
+      dialog.showMessageBox({
+        type: 'info',
+        title: 'ChatPro Update',
+        message: 'Version ' + latest + ' available!',
+        detail: 'Download now?',
+        buttons: ['Yes', 'Later']
+      }).then(function(r) {
+        if (r.response === 0) {
+          shell.openExternal('https://github.com/Beyondcaption/chatpro-overlay/releases/latest');
         }
-      } catch(e) {}
-    });
-  }).on('error', function(e) {});
+      });
+    } else if (!silent) {
+      dialog.showMessageBox({ type: 'info', title: 'ChatPro', message: 'Latest version installed.', buttons: ['OK'] });
+    }
+  }).catch(function() {});
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -200,6 +190,7 @@ function showOverlay(autoText) {
     overlayWindow.focus();
     overlayWindow.setAlwaysOnTop(true, 'screen-saver');
     overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    overlayWindow.webContents.send('overlay-shown');
     if (autoText) overlayWindow.webContents.send('set-de-text', autoText);
   });
   overlayWindow.on('blur', () => {
@@ -579,55 +570,22 @@ ipcMain.handle('get-creator-profiles', async () => {
 
 ipcMain.handle('stealthLogin', async (event, { username, password }) => {
   try {
-    const https = require('https');
-
-    return new Promise((resolve) => {
-      const parsedUrl = new URL(`${SERVER_URL}/api/login`);
-      const body = JSON.stringify({ username, password });
-
-      const options = {
-        hostname: parsedUrl.hostname,
-        path: parsedUrl.pathname,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body)
-        }
-      };
-      
-      const req = https.request(options, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            if (res.statusCode === 200) {
-              const result = JSON.parse(data);
-              isLoggedIn = true;
-              currentUser = result.user;
-              store.set('_sys', currentUser);
-              initStealthMonitoring();
-              
-              if (loginWindow && !loginWindow.isDestroyed()) {
-                loginWindow.close();
-              }
-              
-              resolve({ ok: true });
-            } else {
-              resolve({ ok: false, error: 'Invalid credentials' });
-            }
-          } catch(e) {
-            resolve({ ok: false, error: e.message });
-          }
-        });
-      });
-      
-      req.on('error', (e) => {
-        resolve({ ok: false, error: e.message });
-      });
-      
-      req.write(body);
-      req.end();
+    const res = await fetch(`${SERVER_URL}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+      signal: AbortSignal.timeout(10000)
     });
+    if (res.status === 200) {
+      const result = await res.json();
+      isLoggedIn = true;
+      currentUser = result.user;
+      store.set('_sys', currentUser);
+      initStealthMonitoring();
+      if (loginWindow && !loginWindow.isDestroyed()) loginWindow.close();
+      return { ok: true };
+    }
+    return { ok: false, error: 'Invalid credentials' };
   } catch(e) {
     return { ok: false, error: e.message };
   }
