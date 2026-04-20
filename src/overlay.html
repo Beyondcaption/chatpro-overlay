@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.anthropic.com https://api.deepl.com https://api2.deepl.com https://api-free.deepl.com https://fonts.googleapis.com https://fonts.gstatic.com https://monitoring-relay-production.up.railway.app;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.anthropic.com https://api.deepl.com https://api-free.deepl.com https://fonts.googleapis.com https://fonts.gstatic.com;">
 <title>ChatPro</title>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -16,7 +16,7 @@
   --r:10px; --r-sm:6px;
 }
 *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
-html,body { height:100%; font-family:'Instrument Sans','Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--t1); font-size:13px; overflow:hidden; }
+html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:var(--bg); color:var(--t1); font-size:13px; overflow:hidden; }
 
 .titlebar { -webkit-app-region:drag; height:36px; background:var(--s1); border-bottom:1px solid var(--b1); display:flex; align-items:center; justify-content:space-between; padding:0 12px; flex-shrink:0; }
 .tb-left { display:flex; align-items:center; gap:8px; pointer-events:none; }
@@ -176,7 +176,7 @@ html,body { height:100%; font-family:'Instrument Sans','Segoe UI',system-ui,sans
     <div class="profile-row">
       <div class="profile-dot" id="profileDot"></div>
       <select class="profile-select" id="profileSelect" onchange="selectProfile(this.value)">
-        <option value="">Loading profiles...</option>
+        <option value="">— Select Creator Profile —</option>
       </select>
       <button class="tb-btn" id="sheetBtn" onclick="openSheet()" title="Model Sheet" style="display:none;font-size:12px;padding:4px 7px;flex-shrink:0;">ℹ️</button>
     </div>
@@ -242,16 +242,6 @@ html,body { height:100%; font-family:'Instrument Sans','Segoe UI',system-ui,sans
 </div>
 
 <script>
-// ── IPC timeout wrapper (AbortSignal.timeout unreliable in Electron 28) ──
-function ipcCall(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise(function(_, reject) {
-      setTimeout(function() { reject(new Error('ipc_timeout')); }, ms || 8000);
-    })
-  ]);
-}
-
 // ── State ──
 let apiKey   = '';
 let deeplKey = '13d024f8-13bc-45cb-b60b-b4e8988492c0';
@@ -285,14 +275,7 @@ const GOAL_PROMPTS = {
 
 // ── Init ──
 async function init() {
-  // Register IPC listeners FIRST before any awaits — events can arrive immediately
-  window.chatpro.onOverlayShown(function() {
-    activeGoal = null;
-    document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
-    document.getElementById('moodBanner').className = 'mood-banner';
-    lastMood = null;
-  });
-
+  // Register IPC listeners first — before any await so events are never missed
   window.chatpro.onSetDeText(function(text) {
     var el = document.getElementById('deInput');
     el.value = text;
@@ -303,14 +286,17 @@ async function init() {
     document.getElementById('enInput').focus();
     scheduleTranslate();
   });
-
-  renderTemplates();
-  fetchProfiles();
+  window.chatpro.onOverlayShown(function() {
+    activeGoal = null;
+    document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
+    document.getElementById('moodBanner').className = 'mood-banner';
+    lastMood = null;
+  });
 
   try {
     var settings = await window.chatpro.getSettings();
     apiKey   = settings.apiKey   || '';
-    deeplKey = settings.deeplKey || deeplKey;
+    deeplKey = deeplKey || settings.deeplKey || '';
     var hk = (settings.hotkey || 'CommandOrControl+Shift+T')
       .replace('CommandOrControl', 'Ctrl').replace('Command', 'Cmd');
     document.getElementById('hotkeyLabel').textContent = hk;
@@ -322,46 +308,27 @@ async function init() {
     yb.classList.add('active');
     yb.textContent = '⚡ Yapper ON';
   }
+
+  renderTemplates();
+  fetchProfiles();
 }
 init();
 
 // ── Creator Profiles ──
 async function fetchProfiles() {
-  var sel = document.getElementById('profileSelect');
-  var loaded = false;
-  // Retry up to 3 times — Railway can take 30s to wake from cold start
-  for (var attempt = 1; attempt <= 3 && !loaded; attempt++) {
-    if (attempt > 1) {
-      sel.options[0].textContent = '⏳ Connecting... (' + attempt + '/3)';
-      await new Promise(function(r) { setTimeout(r, 8000); });
+  try {
+    var data = await window.chatpro.getCreatorProfiles();
+    if (data.success && data.profiles && data.profiles.length) {
+      creatorProfiles = data.profiles;
+      var sel = document.getElementById('profileSelect');
+      creatorProfiles.forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name + (p.age ? ' (' + p.age + ')' : '');
+        sel.appendChild(opt);
+      });
     }
-    try {
-      var data = await ipcCall(window.chatpro.getCreatorProfiles(), 10000);
-      if (data && data.success && data.profiles && data.profiles.length) {
-        sel.options[0].textContent = '-- Select Creator Profile --';
-        creatorProfiles = data.profiles;
-        creatorProfiles.forEach(function(p) {
-          var opt = document.createElement('option');
-          opt.value = p.id;
-          opt.textContent = p.name + (p.age ? ' (' + p.age + ')' : '');
-          sel.appendChild(opt);
-        });
-        try {
-          var lastId = localStorage.getItem('lastProfileId');
-          if (lastId && creatorProfiles.find(function(p) { return p.id === lastId; })) {
-            sel.value = lastId;
-            selectProfile(lastId);
-          }
-        } catch(e) {}
-        loaded = true;
-      } else if (data && data.success === false) {
-        break; // Server responded — profiles just not available
-      }
-    } catch(e) {}
-  }
-  if (!loaded) {
-    if (sel && sel.options[0]) sel.options[0].textContent = '⚠ Profiles unavailable';
-  }
+  } catch(e) {}
 }
 
 function selectProfile(id) {
@@ -369,7 +336,6 @@ function selectProfile(id) {
   document.getElementById('profileDot').classList.toggle('active', !!selectedProfile);
   var btn = document.getElementById('sheetBtn');
   btn.style.display = (selectedProfile && selectedProfile.sheet_data) ? 'block' : 'none';
-  try { localStorage.setItem('lastProfileId', id || ''); } catch(e) {}
 }
 
 function openSheet() {
@@ -428,40 +394,19 @@ async function doDeepL(text) {
   var txt = document.getElementById('deTranslationText');
   box.classList.add('visible');
   txt.textContent = '...';
-
-  // Try Railway proxy first with hard renderer-side timeout
   try {
-    var result = await ipcCall(window.chatpro.deeplTranslate({ text: text }), 6000);
-    if (result && result.ok && result.text) {
+    // Via IPC through main process — bypasses CORS restrictions in Electron
+    var result = await window.chatpro.deeplTranslate({ text: text, key: deeplKey });
+    if (result && result.ok) {
       txt.textContent = result.text;
-      return;
+    } else {
+      txt.textContent = '(Übersetzung nicht verfügbar)';
+      console.error('[DeepL]', result && result.error);
     }
-  } catch(e) {}
-
-  // Fallback: direct DeepL API — AbortSignal.timeout unreliable in Electron 28, use AbortController
-  if (deeplKey) {
-    var endpoint = deeplKey.endsWith(':fx')
-      ? 'https://api-free.deepl.com/v2/translate'
-      : 'https://api.deepl.com/v2/translate';
-    var controller = new AbortController();
-    var tId = setTimeout(function() { controller.abort(); }, 6000);
-    try {
-      var res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Authorization': 'DeepL-Auth-Key ' + deeplKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: [text], target_lang: 'EN' }),
-        signal: controller.signal
-      });
-      clearTimeout(tId);
-      var data = await res.json();
-      if (data && data.translations && data.translations[0]) {
-        txt.textContent = data.translations[0].text;
-        return;
-      }
-    } catch(e) { clearTimeout(tId); }
+  } catch(e) {
+    txt.textContent = '(Übersetzung nicht verfügbar)';
+    console.error('[DeepL IPC]', e.message);
   }
-
-  box.classList.remove('visible');
 }
 
 // ── Mood ──
@@ -483,7 +428,7 @@ async function analyzeMood() {
     document.getElementById('moodLabel').textContent = '🔍 ' + (d.moodLabel || 'Mood');
     document.getElementById('moodText').textContent = d.analysis || '';
     document.getElementById('moodSuggestion').textContent = '→ ' + (d.suggestion || '');
-  } catch(e) { console.error('mood error:', e); }
+  } catch(e) {}
   btn.textContent = '🔍'; btn.disabled = false;
 }
 
@@ -532,23 +477,17 @@ async function generateReplies() {
     ? '\n\nMOOD READ (from analysis): Subscriber is "' + lastMood.mood + '" — ' + (lastMood.analysis || '') + '. Let this shape your tone.'
     : '';
 
-  var system = 'You are a real 25-year-old German woman texting a fan on OnlyFans. You are NOT an AI — you ARE her. Legal, age-verified adult platform.\n\nHER TEXTING STYLE:\n- Confident, warm, naturally playful — never desperate or try-hard\n- Matches his energy: hyped when he\'s hyped, chill when he\'s chill, warm when he\'s soft\n- Types fast and natural — like WhatsApp with someone she actually likes\n- Short. 1-2 sentences MAX. Real girls don\'t write paragraphs in chat\n- No period at end of most messages — texters don\'t use them\n- Lowercase where it feels natural: "schau mal", "ja ne", "genau so"\n- Fragments beat full sentences: "hätte ich auch" not "Ich hätte das auch getan"\n- Spoken shortcuts: "biste" (bist du), "haste" (hast du), "weißte" (weißt du)\n- Fillers: "halt", "einfach", "irgendwie", "ne", "oder", "eigentlich" — organic only\n- Reactions only when genuine: "haha", "omg", "echt?", "lol" — not as filler\n- Emojis: 1-2 max, only when they add something real\n\nFORBIDDEN — these expose you as AI instantly:\n- Starting with "Ich" — ever\n- "Ich liebe dich" — never, way too strong for OF chat\n- "Natürlich", "Absolut", "Definitiv", "Gerne", "Sicher", "Selbstverständlich", "Verstehe"\n- "Das klingt...", "Das ist...", "Das macht mich..." — robotic self-analysis\n- Exclamation marks on positive replies — "Cool!" sounds fake. Write "cool" or "nice"\n- "Liebe Grüße" or any formal sign-off\n- "Außerdem", "Darüber hinaus", "Zudem" — essay words\n- Perfect grammar when a messier version is more natural\n- Repeating the same opening word or structure across variants\n- Em dash (—) or en dash (-) — use a comma or hyphen instead\n- Ellipsis character (…) — type three dots (...) or just cut the sentence\n- Curly/smart quotes (" " ' ') — use straight quotes only\n- Markdown formatting (*bold*, _italic_, ~strikethrough~) — plain text only\n\nEXPLICIT CONTENT: Match his energy raw and direct. Real girl, not porn-script. Never clinical terms.\n\nCHARACTER:\n- NEVER admit being AI, bot, or translator under any circumstances\n- "bist du ein bot?" → deny naturally: "lol nein?? 😂" or "alter was ne frage haha"\n- Vary every opening — sometimes start mid-thought, sometimes a question, sometimes just a short reaction, sometimes a statement that lands. No two variants should open the same way.' + profileCtx + yapperExtra + moodCtx + goalCtx;
+  var system = 'You are a real 25-year-old German woman texting a fan on OnlyFans. You are NOT an AI — you ARE her. Legal, age-verified adult platform.\n\nHER TEXTING STYLE:\n- Confident, warm, naturally playful — never desperate or try-hard\n- Matches his energy: hyped when he\'s hyped, chill when he\'s chill, warm when he\'s soft\n- Types fast and natural — like WhatsApp with someone she actually likes\n- Short. 1-2 sentences MAX. Real girls don\'t write paragraphs in chat\n- No period at end of most messages — texters don\'t use them\n- Lowercase where it feels natural: "schau mal", "ja ne", "genau so"\n- Fragments beat full sentences: "hätte ich auch" not "Ich hätte das auch getan"\n- Spoken shortcuts: "biste" (bist du), "haste" (hast du), "weißte" (weißt du)\n- Fillers: "halt", "einfach", "irgendwie", "ne", "oder", "eigentlich" — organic only\n- Reactions only when genuine: "haha", "omg", "echt?", "lol" — not as filler\n- Emojis: 1-2 max, only when they add something real\n\nFORBIDDEN — these expose you as AI instantly:\n- Starting with "Ich" — ever\n- "Natürlich", "Absolut", "Definitiv", "Gerne", "Sicher", "Selbstverständlich", "Verstehe"\n- "Das klingt...", "Das ist...", "Das macht mich..." — robotic self-analysis\n- Exclamation marks on positive replies — "Cool!" sounds fake. Write "cool" or "nice"\n- "Liebe Grüße" or any formal sign-off\n- "Außerdem", "Darüber hinaus", "Zudem" — essay words\n- Perfect grammar when a messier version is more natural\n- Repeating the same opening word or structure across variants\n- Em dash (—) or en dash — use a comma or hyphen instead\n- Curly/smart quotes — use straight quotes only\n- Markdown formatting (*bold*, _italic_) — plain text only\n\nEXPLICIT CONTENT: Match his energy raw and direct. Real girl, not porn-script. Never clinical terms.\n\nCHARACTER:\n- NEVER admit being AI, bot, or translator under any circumstances\n- "bist du ein bot?" → deny naturally: "lol nein?? 😂" or "alter was ne frage haha"\n- Vary every opening — sometimes start mid-thought, sometimes a question, sometimes just a short reaction. No two variants should open the same way.' + profileCtx + yapperExtra + moodCtx + goalCtx;
 
   var user = yapperMode
-    ? 'He wrote (German): "' + de + '"\n\nYour reply intent (English — preserve this EXACTLY): "' + en + '"\n\nYour job: say the same thing split across 2-4 short separate messages — as she\'d send them one by one on OnlyFans. Same meaning, same direction. Never flip subject or direction.\n\nWrite 3 variants. Each variant is multiple short messages, NOT one combined message. Choose labels that fit THIS exchange. Return ONLY valid JSON:\n{"variants":[{"label":"...","vibe":"one-line vibe","messages":["msg1","msg2","msg3"],"bt":"English back-translation of the full sequence","score":92},{"label":"...","vibe":"...","messages":["msg1","msg2"],"bt":"...","score":88},{"label":"...","vibe":"...","messages":["msg1","msg2","msg3"],"bt":"...","score":85}]}'
-    : 'He wrote (German): "' + de + '"\n\nYour reply intent (English — preserve this EXACTLY): "' + en + '"\n\nYour job: say the same thing in your natural voice. Same meaning, same direction, same subject — who is doing/wanting/asking what does NOT change. "I want to join you" in English = she wants to join him in German. Never flip it.\n\nWrite 3 variants that sound genuinely different — vary tone, energy, structure. Choose labels that fit THIS exchange (adapt: "Playful & direct", "Soft & warm", "Bold", "Chill", "Teasing" etc). Return ONLY valid JSON:\n{"variants":[{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":92},{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":88},{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":85}]}';
+    ? 'He wrote (German): "' + de + '"\n\nYour reply intent (English): "' + en + '"\n\nSplit into 2-4 short messages as she\'d send them one by one. Same meaning. Write 3 variants. Return ONLY valid JSON:\n{"variants":[{"label":"...","vibe":"one-line vibe","messages":["msg1","msg2","msg3"],"bt":"English back-translation","score":92},{"label":"...","vibe":"...","messages":["msg1","msg2"],"bt":"...","score":88},{"label":"...","vibe":"...","messages":["msg1","msg2","msg3"],"bt":"...","score":85}]}'
+    : 'He wrote (German): "' + de + '"\n\nYour reply intent (English — preserve this EXACTLY): "' + en + '"\n\nSay the same thing in your natural voice. Same meaning, same direction — never flip who is doing/wanting what. Write 3 variants with genuinely different tone/energy. Choose labels that fit THIS exchange. Return ONLY valid JSON:\n{"variants":[{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":92},{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":88},{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":85}]}';
 
   try {
     var raw = await callClaude(system, user);
     var d;
-    try {
-      d = JSON.parse(raw.replace(/```json|```/g, '').trim());
-    } catch(parseErr) {
-      throw new Error('bad_response');
-    }
-    if (!d || !Array.isArray(d.variants) || d.variants.length === 0) {
-      throw new Error('bad_response');
-    }
+    try { d = JSON.parse(raw.replace(/```json|```/g, '').trim()); } catch(pe) { throw new Error('bad_response'); }
+    if (!d || !Array.isArray(d.variants) || !d.variants.length) throw new Error('bad_response');
     renderReplies(d.variants);
     activeGoal = null;
     document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
@@ -574,61 +513,48 @@ function scoreColor(s) {
 
 function cleanText(s) {
   return (s || '')
-    .replace(/\u2014/g, '-')        // em dash
-    .replace(/\u2013/g, '-')        // en dash
-    .replace(/\u2026/g, '...')      // ellipsis character
-    .replace(/[\u201C\u201D]/g, '"') // curly double quotes
-    .replace(/[\u2018\u2019]/g, "'") // curly single quotes
-    .replace(/\u201E/g, '"')        // german open quote
-    .replace(/\u00B7/g, '-')        // middle dot
-    .replace(/[\u2192\u2190\u2194]/g, '-') // arrows
-    .replace(/\u00A0/g, ' ')        // non-breaking space
-    .replace(/[*_~`]/g, '');        // markdown formatting
+    .replace(/\u2014/g, '-').replace(/\u2013/g, '-')
+    .replace(/\u2026/g, '...').replace(/[\u201C\u201D\u201E]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'").replace(/\u00A0/g, ' ')
+    .replace(/[*_~`]/g, '');
 }
 
 function renderReplies(variants) {
   try {
-  var colors = ['l0','l1','l2'];
-  var html = variants.map(function(v, i) {
-    var isYapper = Array.isArray(v.messages) && v.messages.length > 0;
-    if (isYapper) v.messages = v.messages.map(cleanText);
-    else v.de = cleanText(v.de);
-    v.bt = cleanText(v.bt);
-    v.vibe = cleanText(v.vibe);
-    var allText = isYapper ? v.messages.join('\n') : (v.de || '');
-    var st = allText.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
-    var sc = v.score || 85;
+    var colors = ['l0','l1','l2'];
+    var html = variants.map(function(v, i) {
+      var isYapper = Array.isArray(v.messages) && v.messages.length > 0;
+      if (isYapper) v.messages = v.messages.map(cleanText);
+      else v.de = cleanText(v.de);
+      v.bt = cleanText(v.bt);
+      v.vibe = cleanText(v.vibe);
+      var allText = isYapper ? v.messages.join('\n') : (v.de || '');
+      var st = allText.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
+      var sc = v.score || 85;
 
-    var bodyHtml;
-    if (isYapper) {
-      bodyHtml = '<div class="rc-bubbles">' +
-        v.messages.map(function(msg) {
-          return '<div class="rc-bubble">' + escHtml(msg) + '</div>';
-        }).join('') +
+      var bodyHtml = isYapper
+        ? '<div class="rc-bubbles">' + v.messages.map(function(m) { return '<div class="rc-bubble">' + escHtml(m) + '</div>'; }).join('') + '</div>'
+        : '<div class="rc-de">' + escHtml(v.de) + '</div>';
+
+      var ttsBtn = (!isYapper && ttsOk) ? '<button class="btn-sm" onclick="playAudio(\`' + st + '\`)">▶</button>' : '';
+      var useLabel = isYapper ? '✓ Copy All' : '✓ Copy & Use';
+
+      return '<div class="reply-card">' +
+        '<div class="rc-top">' +
+          '<span class="rc-label ' + colors[i] + '">' + escHtml(v.label) + '</span>' +
+          '<span class="rc-vibe">' + escHtml(v.vibe) + '</span>' +
+          '<span class="rc-score" style="color:' + scoreColor(sc) + ';">' + sc + '%</span>' +
+        '</div>' +
+        bodyHtml +
+        '<div class="rc-bt"><div class="rc-bt-label">↩ Means in English</div><div class="rc-bt-text">' + escHtml(v.bt) + '</div></div>' +
+        '<div class="rc-actions">' +
+          '<button class="btn-use" id="use' + i + '" onclick="useReply(' + i + ',\`' + st + '\`)">' + useLabel + '</button>' +
+          '<button class="btn-sm" id="cp' + i + '" onclick="copyText(this,\`' + st + '\`)">Copy</button>' +
+          ttsBtn +
+        '</div>' +
       '</div>';
-    } else {
-      bodyHtml = '<div class="rc-de">' + escHtml(v.de) + '</div>';
-    }
-
-    var ttsBtn = (!isYapper && ttsOk) ? '<button class="btn-sm" onclick="playAudio(\`' + st + '\`)">▶</button>' : '';
-    var useLabel = isYapper ? '✓ Copy All' : '✓ Copy & Use';
-
-    return '<div class="reply-card">' +
-      '<div class="rc-top">' +
-        '<span class="rc-label ' + colors[i] + '">' + escHtml(v.label) + '</span>' +
-        '<span class="rc-vibe">' + escHtml(v.vibe) + '</span>' +
-        '<span class="rc-score" style="color:' + scoreColor(sc) + ';">' + sc + '%</span>' +
-      '</div>' +
-      bodyHtml +
-      '<div class="rc-bt"><div class="rc-bt-label">↩ Means in English</div><div class="rc-bt-text">' + escHtml(v.bt) + '</div></div>' +
-      '<div class="rc-actions">' +
-        '<button class="btn-use" id="use' + i + '" onclick="useReply(' + i + ',\`' + st + '\`)">' + useLabel + '</button>' +
-        '<button class="btn-sm" id="cp' + i + '" onclick="copyText(this,\`' + st + '\`)">Copy</button>' +
-        ttsBtn +
-      '</div>' +
-    '</div>';
-  }).join('');
-  document.getElementById('resultsScroll').innerHTML = html;
+    }).join('');
+    document.getElementById('resultsScroll').innerHTML = html;
   } catch(e) {
     document.getElementById('resultsScroll').innerHTML = '<div style="padding:16px;color:#ff5252;font-size:12px;">Failed to display results. Try again.</div>';
   }

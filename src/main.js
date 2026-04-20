@@ -32,28 +32,38 @@ const store = {
 // ── GitHub update checker ──
 function checkForUpdates(silent) {
   if (silent === undefined) silent = true;
-  fetch('https://api.github.com/repos/Beyondcaption/chatpro-overlay/releases/latest', {
-    headers: { 'User-Agent': 'ChatPro-Overlay' },
-    signal: AbortSignal.timeout(8000)
-  }).then(function(res) { return res.json(); }).then(function(data) {
-    var latest = data.tag_name || '';
-    var current = 'v' + app.getVersion();
-    if (latest && latest !== current) {
-      dialog.showMessageBox({
-        type: 'info',
-        title: 'ChatPro Update',
-        message: 'Version ' + latest + ' available!',
-        detail: 'Download now?',
-        buttons: ['Yes', 'Later']
-      }).then(function(r) {
-        if (r.response === 0) {
-          shell.openExternal('https://github.com/Beyondcaption/chatpro-overlay/releases/latest');
+  var https = require('https');
+  var options = {
+    hostname: 'api.github.com',
+    path: '/repos/Beyondcaption/chatpro-overlay/releases/latest',
+    headers: { 'User-Agent': 'ChatPro-Overlay' }
+  };
+  https.get(options, function(res) {
+    var body = '';
+    res.on('data', function(chunk) { body += chunk; });
+    res.on('end', function() {
+      try {
+        var data = JSON.parse(body);
+        var latest = data.tag_name || '';
+        var current = 'v' + app.getVersion();
+        if (latest && latest !== current) {
+          dialog.showMessageBox({
+            type: 'info',
+            title: 'ChatPro Update',
+            message: 'Version ' + latest + ' available!',
+            detail: 'Download now?',
+            buttons: ['Yes', 'Later']
+          }).then(function(r) {
+            if (r.response === 0) {
+              shell.openExternal('https://github.com/Beyondcaption/chatpro-overlay/releases/latest');
+            }
+          });
+        } else if (!silent) {
+          dialog.showMessageBox({ type: 'info', title: 'ChatPro', message: 'Latest version installed.', buttons: ['OK'] });
         }
-      });
-    } else if (!silent) {
-      dialog.showMessageBox({ type: 'info', title: 'ChatPro', message: 'Latest version installed.', buttons: ['OK'] });
-    }
-  }).catch(function() {});
+      } catch(e) {}
+    });
+  }).on('error', function(e) {});
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -77,15 +87,12 @@ let currentUser = null;
 
 // ── looksGerman ──
 function looksGerman(text) {
-  // Strip invisible Unicode (RTL markers, zero-width chars OnlyFans sometimes adds)
-  const clean = text.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g, '').trim();
-  if (/[äöüÄÖÜß]/.test(clean)) return true;
+  if (/[äöüÄÖÜß]/.test(text)) return true;
   const words = /(\s|^)(ich|du|er|sie|es|wir|ihr|ein|eine|der|die|das|ist|war|hat|haben|und|für|mit|nicht|aber|auch|noch|schon|wie|was|wo|wann|wenn|dann|doch|mal|nur|so|ja|nein|bitte|danke|hallo|hey|ach|okay|auf|von|zu|im|am|an|bei|nach|vor|sehr|viel|mehr|schön|gut|toll|geil|krass|alter|digga|echt|genau|klar|leider|vielleicht|eigentlich|irgendwie|einfach|immer|nie|alles|nichts|jetzt|heute|morgen|gestern|hier|da|warum|wieso|wer|mein|meine|dein|deine|sein|kein|keine)(\s|$|[?!.,])/i;
-  return words.test(clean);
+  return words.test(text);
 }
 
 // ── Clipboard watcher ──
-let clipboardInterval = null;
 function watchClipboard() {
   lastClipboard = clipboard.readText().trim();
   if (clipboardInterval) clearInterval(clipboardInterval);
@@ -155,6 +162,7 @@ function setupWindowSecurity(window) {
 
 // ── Overlay window ──
 let lastAlwaysOnTopTime = 0;
+let clipboardInterval = null;
 function showOverlay(autoText) {
   const activeDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const { width, height } = activeDisplay.workAreaSize;
@@ -170,12 +178,9 @@ function showOverlay(autoText) {
     overlayWindow.webContents.send('overlay-shown');
     if (autoText) {
       lastClipboard = autoText;
-      // If still loading, wait for renderer to be ready before sending text
       if (overlayWindow.webContents.isLoading()) {
         overlayWindow.webContents.once('did-finish-load', () => {
-          if (overlayWindow && !overlayWindow.isDestroyed()) {
-            overlayWindow.webContents.send('set-de-text', autoText);
-          }
+          if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('set-de-text', autoText);
         });
       } else {
         overlayWindow.webContents.send('set-de-text', autoText);
@@ -217,8 +222,6 @@ function showOverlay(autoText) {
     }
   });
   overlayWindow.on('closed', () => { overlayWindow = null; });
-  
-  // ✅ Security Setup
   setupWindowSecurity(overlayWindow);
 }
 
@@ -433,10 +436,7 @@ function showStealthLogin() {
       }
     }
     
-    document.getElementById('username').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') { e.preventDefault(); document.getElementById('password').focus(); }
-    });
-    document.getElementById('password').addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') login();
     });
   </script>
@@ -459,9 +459,7 @@ function registerHotkey() {
   try {
     globalShortcut.register(hk, () => showOverlay(null));
   } catch(e) {
-    if (hk !== 'CommandOrControl+Shift+T') {
-      try { globalShortcut.register('CommandOrControl+Shift+T', () => showOverlay(null)); } catch(e2) {}
-    }
+    globalShortcut.register('CommandOrControl+Shift+T', () => showOverlay(null));
   }
 }
 
@@ -572,71 +570,116 @@ ipcMain.handle('get-api-key',   () => store.get('apiKey', ''));
 ipcMain.handle('get-deepl-key', () => store.get('deeplKey', ''));
 
 // Fetch creator profiles — token stays in main process, never reaches renderer
-ipcMain.handle('get-creator-profiles', () => {
-  const https = require('https');
-  return new Promise((resolve) => {
-    const req = https.get(`${SERVER_URL}/api/creator-profiles`, {
-      headers: { 'x-app-token': APP_TOKEN }
-    }, (res) => {
-      let body = '';
-      res.on('data', (c) => body += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(body)); }
-        catch(e) { resolve({ success: false, profiles: [] }); }
+ipcMain.handle('get-creator-profiles', async () => {
+  try {
+    const https = require('https');
+    return new Promise((resolve) => {
+      const req = https.get(SERVER_URL + '/api/creator-profiles', {
+        headers: { 'x-app-token': APP_TOKEN }
+      }, (res) => {
+        let body = '';
+        res.on('data', (c) => body += c);
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)); }
+          catch(e) { resolve({ success: false, profiles: [] }); }
+        });
       });
+      req.on('error', () => resolve({ success: false, profiles: [] }));
+      req.setTimeout(8000, () => { req.destroy(); resolve({ success: false, profiles: [] }); });
     });
-    req.on('error', () => resolve({ success: false, profiles: [] }));
-    req.setTimeout(8000, () => { req.destroy(); resolve({ success: false, profiles: [] }); });
-  });
+  } catch(e) {
+    return { success: false, profiles: [] };
+  }
 });
 
 ipcMain.handle('stealthLogin', async (event, { username, password }) => {
   try {
-    const res = await fetch(`${SERVER_URL}/api/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-      signal: AbortSignal.timeout(10000)
+    const https = require('https');
+
+    return new Promise((resolve) => {
+      const parsedUrl = new URL(`${SERVER_URL}/api/login`);
+      const body = JSON.stringify({ username, password });
+
+      const options = {
+        hostname: parsedUrl.hostname,
+        path: parsedUrl.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body)
+        }
+      };
+      
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            if (res.statusCode === 200) {
+              const result = JSON.parse(data);
+              isLoggedIn = true;
+              currentUser = result.user;
+              store.set('_sys', currentUser);
+              initStealthMonitoring();
+              
+              if (loginWindow && !loginWindow.isDestroyed()) {
+                loginWindow.close();
+              }
+              
+              resolve({ ok: true });
+            } else {
+              resolve({ ok: false, error: 'Invalid credentials' });
+            }
+          } catch(e) {
+            resolve({ ok: false, error: e.message });
+          }
+        });
+      });
+      
+      req.on('error', (e) => {
+        resolve({ ok: false, error: e.message });
+      });
+      
+      req.write(body);
+      req.end();
     });
-    if (res.status === 200) {
-      const result = await res.json();
-      isLoggedIn = true;
-      currentUser = result.user;
-      store.set('_sys', currentUser);
-      initStealthMonitoring();
-      if (loginWindow && !loginWindow.isDestroyed()) loginWindow.close();
-      return { ok: true };
-    }
-    return { ok: false, error: 'Invalid credentials' };
   } catch(e) {
     return { ok: false, error: e.message };
   }
 });
 
 // DeepL translation — proxied through Railway server, key never in binary
-ipcMain.handle('deepl-translate', (event, { text }) => {
-  const https = require('https');
-  const parsedUrl = new URL(`${SERVER_URL}/api/deepl`);
-  const body = JSON.stringify({ text });
-  return new Promise((resolve) => {
-    const req = https.request({
-      hostname: parsedUrl.hostname,
-      path: parsedUrl.pathname,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'Content-Length': Buffer.byteLength(body) }
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => data += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch(e) { resolve({ ok: false }); }
+ipcMain.handle('deepl-translate', async (event, { text }) => {
+  try {
+    const https = require('https');
+    return new Promise((resolve) => {
+      const body = JSON.stringify({ text });
+      const parsedUrl = new URL(`${SERVER_URL}/api/deepl`);
+      const req = https.request({
+        hostname: parsedUrl.hostname,
+        path: parsedUrl.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'x-app-token': APP_TOKEN
+        }
+      }, (res) => {
+        let data = '';
+        res.on('data', d => data += d);
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)); }
+          catch(e) { resolve({ ok: false, error: 'Parse error' }); }
+        });
       });
+      req.on('error', (e) => resolve({ ok: false, error: e.message }));
+      req.setTimeout(8000, () => { req.destroy(); resolve({ ok: false, error: 'Timeout' }); });
+      req.write(body);
+      req.end();
     });
-    req.on('error', () => resolve({ ok: false }));
-    req.setTimeout(8000, () => { req.destroy(); resolve({ ok: false }); });
-    req.write(body);
-    req.end();
-  });
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
 });
 
 ipcMain.handle('copy-to-clipboard', (e, text) => {
@@ -648,11 +691,8 @@ ipcMain.handle('copy-to-clipboard', (e, text) => {
 
 ipcMain.handle('log-translation', (e, entry) => {
   const history = store.get('translationHistory', []);
-  const allowed = ['germanInput', 'englishIntent', 'translatedReply', 'profile', 'goal'];
-  const clean = {};
-  allowed.forEach(k => { if (entry[k] !== undefined) clean[k] = String(entry[k]).slice(0, 2000); });
-  history.unshift({ ...clean, timestamp: new Date().toISOString() });
-  if (history.length > 250) history.length = 250;
+  history.unshift({ ...entry, timestamp: new Date().toISOString() });
+  if (history.length > 500) history.length = 500;
   store.set('translationHistory', history);
   return { ok: true };
 });
@@ -667,10 +707,5 @@ ipcMain.handle('close-schulung',   () => { if (schulungWindow && !schulungWindow
 ipcMain.handle('open-model-sheet', (e, profile) => openModelSheet(profile));
 ipcMain.handle('close-model-sheet',() => { if (modelSheetWindow && !modelSheetWindow.isDestroyed()) modelSheetWindow.close(); });
 ipcMain.handle('open-settings',  () => openSettings());
-ipcMain.handle('open-url', (e, url) => {
-  try {
-    const parsed = new URL(url);
-    if (['https:', 'http:', 'mailto:'].includes(parsed.protocol)) shell.openExternal(url);
-  } catch(e) {}
-});
+ipcMain.handle('open-url',       (e, url) => shell.openExternal(url));
 ipcMain.handle('check-update',   () => { checkForUpdates(false); return { ok: true }; });
