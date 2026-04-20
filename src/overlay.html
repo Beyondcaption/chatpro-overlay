@@ -243,6 +243,16 @@ html,body { height:100%; font-family:'Instrument Sans','Segoe UI',system-ui,sans
 </div>
 
 <script>
+// ── IPC timeout wrapper (AbortSignal.timeout unreliable in Electron 28) ──
+function ipcCall(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise(function(_, reject) {
+      setTimeout(function() { reject(new Error('ipc_timeout')); }, ms || 8000);
+    })
+  ]);
+}
+
 // ── State ──
 let apiKey   = '';
 let deeplKey = '13d024f8-13bc-45cb-b60b-b4e8988492c0';
@@ -320,7 +330,7 @@ init();
 async function fetchProfiles() {
   var sel = document.getElementById('profileSelect');
   try {
-    var data = await window.chatpro.getCreatorProfiles();
+    var data = await ipcCall(window.chatpro.getCreatorProfiles(), 8000);
     sel.options[0].textContent = '-- Select Creator Profile --';
     if (data && data.success && data.profiles && data.profiles.length) {
       creatorProfiles = data.profiles;
@@ -410,9 +420,9 @@ async function doDeepL(text) {
   box.classList.add('visible');
   txt.textContent = '...';
 
-  // Try Railway proxy first (no key exposed)
+  // Try Railway proxy first with hard renderer-side timeout
   try {
-    var result = await window.chatpro.deeplTranslate({ text: text });
+    var result = await ipcCall(window.chatpro.deeplTranslate({ text: text }), 6000);
     if (result && result.ok && result.text) {
       txt.textContent = result.text;
       return;
