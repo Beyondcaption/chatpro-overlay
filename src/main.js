@@ -170,7 +170,16 @@ function showOverlay(autoText) {
     overlayWindow.webContents.send('overlay-shown');
     if (autoText) {
       lastClipboard = autoText;
-      overlayWindow.webContents.send('set-de-text', autoText);
+      // If still loading, wait for renderer to be ready before sending text
+      if (overlayWindow.webContents.isLoading()) {
+        overlayWindow.webContents.once('did-finish-load', () => {
+          if (overlayWindow && !overlayWindow.isDestroyed()) {
+            overlayWindow.webContents.send('set-de-text', autoText);
+          }
+        });
+      } else {
+        overlayWindow.webContents.send('set-de-text', autoText);
+      }
     }
     return;
   }

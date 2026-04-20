@@ -187,8 +187,7 @@ html,body { height:100%; font-family:'Instrument Sans','Segoe UI',system-ui,sans
     <textarea class="de-input" id="deInput" rows="2"
       placeholder="Paste German message here…"
       oninput="autosize(this); scheduleTranslate()"
-      onpaste="setTimeout(function(){scheduleTranslate();}, 100)">
-    </textarea>
+      onpaste="setTimeout(function(){scheduleTranslate();}, 100)"></textarea>
     <div class="de-translation" id="deTranslation">
       <div class="de-translation-label">↩ Means in English</div>
       <div class="de-translation-text" id="deTranslationText"></div>
@@ -439,26 +438,27 @@ async function doDeepL(text) {
     }
   } catch(e) {}
 
-  // Fallback: direct DeepL API — try both endpoints (key type detection unreliable for older keys)
+  // Fallback: direct DeepL API — AbortSignal.timeout unreliable in Electron 28, use AbortController
   if (deeplKey) {
-    var endpoints = deeplKey.endsWith(':fx')
-      ? ['https://api-free.deepl.com/v2/translate']
-      : ['https://api.deepl.com/v2/translate', 'https://api2.deepl.com/v2/translate'];
-    for (var ei = 0; ei < endpoints.length; ei++) {
-      try {
-        var res = await fetch(endpoints[ei], {
-          method: 'POST',
-          headers: { 'Authorization': 'DeepL-Auth-Key ' + deeplKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: [text], target_lang: 'EN' }),
-          signal: AbortSignal.timeout(6000)
-        });
-        var data = await res.json();
-        if (data && data.translations && data.translations[0]) {
-          txt.textContent = data.translations[0].text;
-          return;
-        }
-      } catch(e) {}
-    }
+    var endpoint = deeplKey.endsWith(':fx')
+      ? 'https://api-free.deepl.com/v2/translate'
+      : 'https://api.deepl.com/v2/translate';
+    var controller = new AbortController();
+    var tId = setTimeout(function() { controller.abort(); }, 6000);
+    try {
+      var res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Authorization': 'DeepL-Auth-Key ' + deeplKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: [text], target_lang: 'EN' }),
+        signal: controller.signal
+      });
+      clearTimeout(tId);
+      var data = await res.json();
+      if (data && data.translations && data.translations[0]) {
+        txt.textContent = data.translations[0].text;
+        return;
+      }
+    } catch(e) { clearTimeout(tId); }
   }
 
   box.classList.remove('visible');
