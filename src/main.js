@@ -88,11 +88,8 @@ let currentUser = null;
 // ── looksGerman ──
 function looksGerman(text) {
   if (/[äöüÄÖÜß]/.test(text)) return true;
-  const unambiguous = /(\s|^)(bitte|danke|hallo|schön|nicht|aber|auch|noch|schon|wenn|dann|doch|nein|geil|krass|alter|digga|leider|vielleicht|eigentlich|irgendwie|einfach|immer|alles|nichts|jetzt|heute|morgen|gestern|warum|wieso|meine|deine|keine)(\s|$|[?!.,])/i;
-  const common = /(\s|^)(ich|und|ist|das|die|der|mit|für|haben|wird|kann|mehr|sehr|viel|hier|wann|weil|also)(\s|$|[?!.,])/gi;
-  if (unambiguous.test(text)) return true;
-  const matches = text.match(common);
-  return matches && matches.length >= 2;
+  const words = /(\s|^)(ich|du|er|sie|es|wir|ihr|ein|eine|der|die|das|ist|war|hat|haben|und|für|mit|nicht|aber|auch|noch|schon|wie|was|wo|wann|wenn|dann|doch|mal|nur|so|ja|nein|bitte|danke|hallo|hey|ach|okay|auf|von|zu|im|am|an|bei|nach|vor|sehr|viel|mehr|schön|gut|toll|geil|krass|alter|digga|echt|genau|klar|leider|vielleicht|eigentlich|irgendwie|einfach|immer|nie|alles|nichts|jetzt|heute|morgen|gestern|hier|da|warum|wieso|wer|mein|meine|dein|deine|sein|kein|keine)(\s|$|[?!.,])/i;
+  return words.test(text);
 }
 
 // ── Clipboard watcher ──
@@ -681,7 +678,7 @@ ipcMain.handle('deepl-translate', async (event, { text }) => {
 });
 
 ipcMain.handle('copy-to-clipboard', (e, text) => {
-  suppressAutoDetect = Date.now() + 2000;
+  suppressAutoDetect = Date.now() + 500;
   lastClipboard = text;
   clipboard.writeText(text);
   return { ok: true };

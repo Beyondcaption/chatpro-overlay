@@ -293,7 +293,6 @@ async function init() {
   }
 
   renderTemplates();
-  await fetchProfiles();
 
   window.chatpro.onOverlayShown(function() {
     activeGoal = null;
@@ -312,6 +311,8 @@ async function init() {
     document.getElementById('enInput').focus();
     scheduleTranslate();
   });
+
+  fetchProfiles();
 }
 init();
 
