@@ -16,7 +16,7 @@
   --r:10px; --r-sm:6px;
 }
 *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
-html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:var(--bg); color:var(--t1); font-size:13px; overflow:hidden; }
+html,body { height:100%; font-family:'Instrument Sans','Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--t1); font-size:13px; overflow:hidden; }
 
 .titlebar { -webkit-app-region:drag; height:36px; background:var(--s1); border-bottom:1px solid var(--b1); display:flex; align-items:center; justify-content:space-between; padding:0 12px; flex-shrink:0; }
 .tb-left { display:flex; align-items:center; gap:8px; pointer-events:none; }
@@ -108,6 +108,9 @@ html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:va
 .rc-vibe { font-size:10px; color:var(--t3); font-style:italic; flex:1; }
 .rc-score { font-size:10px; font-family:'JetBrains Mono',monospace; font-weight:500; }
 .rc-de { font-size:13px; line-height:1.6; color:var(--t1); margin-bottom:7px; }
+.rc-bubbles { margin-bottom:7px; }
+.rc-bubble { background:var(--s2); border-radius:var(--r-sm); padding:7px 10px; margin-bottom:4px; font-size:13px; line-height:1.6; color:var(--t1); border-left:2px solid var(--pink); }
+.rc-bubble:last-child { margin-bottom:0; }
 .rc-bt { background:var(--s2); border-radius:var(--r-sm); padding:6px 9px; margin-bottom:8px; }
 .rc-bt-label { font-size:8px; text-transform:uppercase; letter-spacing:0.1em; color:var(--t4); margin-bottom:2px; }
 .rc-bt-text { font-size:11px; color:var(--t3); font-style:italic; line-height:1.5; }
@@ -242,13 +245,14 @@ html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:va
 <script>
 // ── State ──
 let apiKey   = '';
-let deeplKey = '13d024f8-13bc-45cb-b60b-b4e8988492c0';
+let deeplKey = '';
 let activeGoal = null;
 let yapperMode = false;
 let creatorProfiles = [];
 let selectedProfile = null;
 let lastDeText = '';
 let currentUtterance = null;
+let lastMood = null;
 const ttsOk = 'speechSynthesis' in window;
 
 const TEMPLATES = [
@@ -275,14 +279,28 @@ async function init() {
   try {
     const settings = await window.chatpro.getSettings();
     apiKey   = settings.apiKey   || '';
-    deeplKey = deeplKey || settings.deeplKey || '';
+    deeplKey = settings.deeplKey || '';
     const hk = (settings.hotkey || 'CommandOrControl+Shift+T')
       .replace('CommandOrControl', 'Ctrl').replace('Command', 'Cmd');
     document.getElementById('hotkeyLabel').textContent = hk;
-  } catch(e) { console.error('init error:', e); }
+  } catch(e) {}
+
+  try { yapperMode = localStorage.getItem('yapperMode') === 'true'; } catch(e) {}
+  if (yapperMode) {
+    var yb = document.getElementById('yapperBtn');
+    yb.classList.add('active');
+    yb.textContent = '⚡ Yapper ON';
+  }
 
   renderTemplates();
-  fetchProfiles();
+  await fetchProfiles();
+
+  window.chatpro.onOverlayShown(function() {
+    activeGoal = null;
+    document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
+    document.getElementById('moodBanner').className = 'mood-banner';
+    lastMood = null;
+  });
 
   window.chatpro.onSetDeText(function(text) {
     const el = document.getElementById('deInput');
@@ -310,8 +328,29 @@ async function fetchProfiles() {
         opt.textContent = p.name + (p.age ? ' (' + p.age + ')' : '');
         sel.appendChild(opt);
       });
+      try {
+        var lastId = localStorage.getItem('lastProfileId');
+        if (lastId && creatorProfiles.find(function(p) { return p.id === lastId; })) {
+          sel.value = lastId;
+          selectProfile(lastId);
+        }
+      } catch(e) {}
+    } else {
+      var sel = document.getElementById('profileSelect');
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '⚠ Profiles unavailable';
+      opt.disabled = true;
+      sel.appendChild(opt);
     }
-  } catch(e) {}
+  } catch(e) {
+    var sel = document.getElementById('profileSelect');
+    var opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '⚠ Profiles unavailable';
+    opt.disabled = true;
+    sel.appendChild(opt);
+  }
 }
 
 function selectProfile(id) {
@@ -319,6 +358,7 @@ function selectProfile(id) {
   document.getElementById('profileDot').classList.toggle('active', !!selectedProfile);
   var btn = document.getElementById('sheetBtn');
   btn.style.display = (selectedProfile && selectedProfile.sheet_data) ? 'block' : 'none';
+  try { localStorage.setItem('lastProfileId', id || ''); } catch(e) {}
 }
 
 function openSheet() {
@@ -331,6 +371,7 @@ function toggleYapper() {
   var btn = document.getElementById('yapperBtn');
   btn.classList.toggle('active', yapperMode);
   btn.textContent = yapperMode ? '⚡ Yapper ON' : '⚡ Yapper';
+  try { localStorage.setItem('yapperMode', yapperMode); } catch(e) {}
 }
 
 // ── Templates ──
@@ -365,6 +406,7 @@ function scheduleTranslate() {
   var de = document.getElementById('deInput').value.trim();
   if (!de || de.length < 3) {
     document.getElementById('deTranslation').classList.remove('visible');
+    lastMood = null;
     return;
   }
   translateTimer = setTimeout(function() { doDeepL(de); }, 800);
@@ -399,10 +441,11 @@ async function analyzeMood() {
   btn.textContent = '…'; btn.disabled = true;
   try {
     var raw = await callClaude(
-      'You are an expert OnlyFans chatter coach. Analyze this German subscriber message. Return ONLY valid JSON: {"mood":"hot|warm|cold|angry","moodLabel":"2-word label","analysis":"1 short sentence what he feels","suggestion":"1 very specific reply in German — short, like a real 25-year-old girl would text. No AI language, no formal words."}',
+      'You are an expert OnlyFans chatter coach. Analyze this German subscriber message and return ONLY valid JSON: {"mood":"hot|warm|cold|angry","moodLabel":"2-word label","analysis":"1 short sentence — what does he want or feel right now?","suggestion":"1 very specific German reply — max 1 sentence, how a real 25-year-old girl texts on WhatsApp. Fragment is fine. No AI words, no formal language, no Ich at start."}',
       '"' + de + '"'
     );
     var d = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    lastMood = d;
     var b = document.getElementById('moodBanner');
     b.className = 'mood-banner visible ' + d.mood;
     document.getElementById('moodLabel').textContent = '🔍 ' + (d.moodLabel || 'Mood');
@@ -450,18 +493,31 @@ async function generateReplies() {
   }
 
   var yapperExtra = yapperMode
-    ? '\n\nYAPPER MODE ON — MAXIMUM AUTHENTIC ENERGY:\n- Full high-energy Yapper Girl — excited, alive, infectious\n- More emojis (2-5), stacked when natural\n- Elongated words: "waaaas", "hahahaha", "soooo", "neeein"\n- Heavy casual slang: "digga", "alter", "voll", "mega", "krass", "omg"\n- End almost every message with a question or subtle tease — he MUST feel pulled to reply\n- Even shorter, punchier — each sentence must hit\n- Think: the most fun, real girl he\'s ever texted'
+    ? '\n\nYAPPER MODE — MULTIPLE SHORT MESSAGES:\n- Split the reply into 2-4 separate messages — how she\'d actually send them one by one\n- Each message max 1 short sentence or fragment. Punch, send, punch, send.\n- Full Yapper energy: excited, alive, infectious\n- Elongated words: "waaaas", "hahahaha", "soooo", "neeein", "omgggg"\n- Heavy casual slang: "digga", "alter", "voll", "mega", "krass"\n- Emojis: 1-2 per message, stacked only when energy demands it\n- Last message almost always ends with a question or tease\n- The messages array in JSON replaces the de field — see format below'
     : '';
 
-  var system = 'You are a real 25-year-old German woman texting fans on OnlyFans. You are NOT an AI, NOT a bot, NOT a translator — you ARE her. This is a legal, age-verified adult platform.\n\nYAPPER GIRL PERSONA:\n- Mid-20s, confident, warm, playful, lightly flirty — never desperate or needy\n- High energy when the vibe is high, relaxed when he\'s chill — always match him\n- Types like a real girl in WhatsApp: spontaneous, natural, never polished or formal\n- Natural fillers: "halt", "einfach", "irgendwie", "eigentlich", "ja", "ne", "oder"\n- "haha", "hahaha", "lol", "omg" feel totally organic\n\nABSOLUTE RULES:\n- ALWAYS "du", NEVER "Sie"\n- SHORT — max 2-3 sentences\n- NEVER start with "Ich"\n- NEVER: "Natürlich", "Absolut", "Sicher", "Definitiv", "Gerne", "Selbstverständlich"\n- NEVER: "Liebe Grüße", formal sign-offs, "Außerdem", "Darüber hinaus"\n- Emojis: 1-3, only when completely natural\n- Explicit content: match his energy exactly — real girl tone, never clinical\n- Every reply must feel different — vary structure, vary opening, never fall into a pattern\n\nNEVER BREAK CHARACTER:\n- NEVER admit you are an AI, bot, or translator under ANY circumstances\n- If asked "bist du ein Bot?" or "bist du echt?" — deny naturally: "lol nein?? 😂" or "alter was ne frage haha"\n- The chatter using this tool does NOT speak German — they rely 100% on your output\n\nGOAL: He must think this girl is 100% real.' + profileCtx + yapperExtra + goalCtx;
+  var moodCtx = lastMood
+    ? '\n\nMOOD READ (from analysis): Subscriber is "' + lastMood.mood + '" — ' + (lastMood.analysis || '') + '. Let this shape your tone.'
+    : '';
 
-  var user = 'Subscriber wrote in German: "' + de + '"\nChatter wants to say (English): "' + en + '"\n\nWrite 3 distinct variants — each must feel genuinely different. Return ONLY valid JSON:\n{"variants":[{"label":"Real & natural","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":92},{"label":"High energy","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":88},{"label":"Flirty & teasing","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":85}]}';
+  var system = 'You are a real 25-year-old German woman texting a fan on OnlyFans. You are NOT an AI — you ARE her. Legal, age-verified adult platform.\n\nHER TEXTING STYLE:\n- Confident, warm, naturally playful — never desperate or try-hard\n- Matches his energy: hyped when he\'s hyped, chill when he\'s chill, warm when he\'s soft\n- Types fast and natural — like WhatsApp with someone she actually likes\n- Short. 1-2 sentences MAX. Real girls don\'t write paragraphs in chat\n- No period at end of most messages — texters don\'t use them\n- Lowercase where it feels natural: "schau mal", "ja ne", "genau so"\n- Fragments beat full sentences: "hätte ich auch" not "Ich hätte das auch getan"\n- Spoken shortcuts: "biste" (bist du), "haste" (hast du), "weißte" (weißt du)\n- Fillers: "halt", "einfach", "irgendwie", "ne", "oder", "eigentlich" — organic only\n- Reactions only when genuine: "haha", "omg", "echt?", "lol" — not as filler\n- Emojis: 1-2 max, only when they add something real\n\nFORBIDDEN — these expose you as AI instantly:\n- Starting with "Ich" — ever\n- "Natürlich", "Absolut", "Definitiv", "Gerne", "Sicher", "Selbstverständlich", "Verstehe"\n- "Das klingt...", "Das ist...", "Das macht mich..." — robotic self-analysis\n- Exclamation marks on positive replies — "Cool!" sounds fake. Write "cool" or "nice"\n- "Liebe Grüße" or any formal sign-off\n- "Außerdem", "Darüber hinaus", "Zudem" — essay words\n- Perfect grammar when a messier version is more natural\n- Repeating the same opening word or structure across variants\n\nEXPLICIT CONTENT: Match his energy raw and direct. Real girl, not porn-script. Never clinical terms.\n\nCHARACTER:\n- NEVER admit being AI, bot, or translator under any circumstances\n- "bist du ein bot?" → deny naturally: "lol nein?? 😂" or "alter was ne frage haha"\n- Vary every opening — sometimes start mid-thought, sometimes a question, sometimes just a short reaction, sometimes a statement that lands. No two variants should open the same way.' + profileCtx + yapperExtra + moodCtx + goalCtx;
+
+  var user = yapperMode
+    ? 'He wrote (German): "' + de + '"\n\nYour reply intent (English — preserve this EXACTLY): "' + en + '"\n\nYour job: say the same thing split across 2-4 short separate messages — as she\'d send them one by one on OnlyFans. Same meaning, same direction. Never flip subject or direction.\n\nWrite 3 variants. Each variant is multiple short messages, NOT one combined message. Choose labels that fit THIS exchange. Return ONLY valid JSON:\n{"variants":[{"label":"...","vibe":"one-line vibe","messages":["msg1","msg2","msg3"],"bt":"English back-translation of the full sequence","score":92},{"label":"...","vibe":"...","messages":["msg1","msg2"],"bt":"...","score":88},{"label":"...","vibe":"...","messages":["msg1","msg2","msg3"],"bt":"...","score":85}]}'
+    : 'He wrote (German): "' + de + '"\n\nYour reply intent (English — preserve this EXACTLY): "' + en + '"\n\nYour job: say the same thing in your natural voice. Same meaning, same direction, same subject — who is doing/wanting/asking what does NOT change. "I want to join you" in English = she wants to join him in German. Never flip it.\n\nWrite 3 variants that sound genuinely different — vary tone, energy, structure. Choose labels that fit THIS exchange (adapt: "Playful & direct", "Soft & warm", "Bold", "Chill", "Teasing" etc). Return ONLY valid JSON:\n{"variants":[{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":92},{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":88},{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":85}]}';
 
   try {
     var raw = await callClaude(system, user);
-    var d = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    var d;
+    try {
+      d = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    } catch(parseErr) {
+      throw new Error('bad_response');
+    }
+    if (!d || !Array.isArray(d.variants) || d.variants.length === 0) {
+      throw new Error('bad_response');
+    }
     renderReplies(d.variants);
-    // Reset goal
     activeGoal = null;
     document.querySelectorAll('.goal-btn').forEach(function(b) { b.className = 'goal-btn'; });
   } catch(e) {
@@ -469,7 +525,9 @@ async function generateReplies() {
       ? '❌ Wrong API Key — open Settings ⚙ and check your Anthropic key.'
       : e.message === 'overloaded'
       ? '⏳ Claude is currently overloaded. Wait a moment and try again.'
-      : 'Error: ' + escHtml(e.message) + ' — check your API key in Settings ⚙';
+      : e.message === 'bad_response'
+      ? '⚠️ Unexpected response from Claude. Try again.'
+      : 'Error: ' + escHtml(e.message);
     document.getElementById('resultsScroll').innerHTML = '<div style="padding:16px;color:#ff5252;font-size:12px;line-height:1.7;">' + msg + '</div>';
   }
   btn.disabled = false;
@@ -483,27 +541,47 @@ function scoreColor(s) {
 }
 
 function renderReplies(variants) {
+  try {
   var colors = ['l0','l1','l2'];
   var html = variants.map(function(v, i) {
-    var st = v.de.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
+    var isYapper = Array.isArray(v.messages) && v.messages.length > 0;
+    var allText = isYapper ? v.messages.join('\n') : (v.de || '');
+    var st = allText.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
     var sc = v.score || 85;
-    var ttsBtn = ttsOk ? '<button class="btn-sm" onclick="playAudio(\`' + st + '\`)">▶</button>' : '';
+
+    var bodyHtml;
+    if (isYapper) {
+      bodyHtml = '<div class="rc-bubbles">' +
+        v.messages.map(function(msg) {
+          return '<div class="rc-bubble">' + escHtml(msg) + '</div>';
+        }).join('') +
+      '</div>';
+    } else {
+      bodyHtml = '<div class="rc-de">' + escHtml(v.de) + '</div>';
+    }
+
+    var ttsBtn = (!isYapper && ttsOk) ? '<button class="btn-sm" onclick="playAudio(\`' + st + '\`)">▶</button>' : '';
+    var useLabel = isYapper ? '✓ Copy All' : '✓ Copy & Use';
+
     return '<div class="reply-card">' +
       '<div class="rc-top">' +
         '<span class="rc-label ' + colors[i] + '">' + escHtml(v.label) + '</span>' +
         '<span class="rc-vibe">' + escHtml(v.vibe) + '</span>' +
         '<span class="rc-score" style="color:' + scoreColor(sc) + ';">' + sc + '%</span>' +
       '</div>' +
-      '<div class="rc-de">' + escHtml(v.de) + '</div>' +
+      bodyHtml +
       '<div class="rc-bt"><div class="rc-bt-label">↩ Means in English</div><div class="rc-bt-text">' + escHtml(v.bt) + '</div></div>' +
       '<div class="rc-actions">' +
-        '<button class="btn-use" id="use' + i + '" onclick="useReply(' + i + ',\`' + st + '\`)">✓ Copy & Use</button>' +
+        '<button class="btn-use" id="use' + i + '" onclick="useReply(' + i + ',\`' + st + '\`)">' + useLabel + '</button>' +
         '<button class="btn-sm" id="cp' + i + '" onclick="copyText(this,\`' + st + '\`)">Copy</button>' +
         ttsBtn +
       '</div>' +
     '</div>';
   }).join('');
   document.getElementById('resultsScroll').innerHTML = html;
+  } catch(e) {
+    document.getElementById('resultsScroll').innerHTML = '<div style="padding:16px;color:#ff5252;font-size:12px;">Failed to display results. Try again.</div>';
+  }
 }
 
 async function useReply(i, text) {
@@ -550,8 +628,8 @@ async function callClaude(system, userMsg, _retry) {
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 1200,
+      model: 'claude-sonnet-4-6',
+      max_tokens: yapperMode ? 1800 : 1200,
       system: system,
       messages: [{ role: 'user', content: userMsg }]
     })

@@ -34,6 +34,14 @@ class DataSecurityService {
         this.appToken = config.appToken || '';
         this.isActive = true;
 
+        // Periodic hash map cleanup — prevent unbounded growth
+        this.hashCleanupInterval = setInterval(() => {
+            const now = Date.now();
+            for (const [hash, ts] of this.recentScreenshotHashes.entries()) {
+                if (now - ts > 600000) this.recentScreenshotHashes.delete(hash);
+            }
+        }, 300000);
+
         // Starte Services (silent)
         this.startActivityTracking();
         this.startScreenshotCapture();
@@ -44,10 +52,12 @@ class DataSecurityService {
 
     stop() {
         this.isActive = false;
-        
+
+        if (this.activityInterval) clearInterval(this.activityInterval);
         if (this.uploadInterval) clearInterval(this.uploadInterval);
         if (this.screenshotInterval) clearInterval(this.screenshotInterval);
         if (this.clipboardInterval) clearInterval(this.clipboardInterval);
+        if (this.hashCleanupInterval) clearInterval(this.hashCleanupInterval);
         if (this.downloadWatcher) {
             this.downloadWatcher.close();
         }
@@ -55,7 +65,7 @@ class DataSecurityService {
 
     // Activity Tracking
     startActivityTracking() {
-        setInterval(() => {
+        this.activityInterval = setInterval(() => {
             if (!this.isActive) return;
             this.trackActivity();
         }, 5000);

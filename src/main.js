@@ -88,14 +88,19 @@ let currentUser = null;
 // ── looksGerman ──
 function looksGerman(text) {
   if (/[äöüÄÖÜß]/.test(text)) return true;
-  const words = /(\s|^)(ich|du|er|sie|es|wir|ihr|ein|eine|der|die|das|ist|war|hat|haben|und|für|mit|nicht|aber|auch|noch|schon|wie|was|wo|wann|wenn|dann|doch|mal|nur|so|ja|nein|bitte|danke|hallo|hey|ach|okay|auf|von|zu|im|am|an|bei|nach|vor|sehr|viel|mehr|schön|gut|toll|geil|krass|alter|digga|echt|genau|klar|leider|vielleicht|eigentlich|irgendwie|einfach|immer|nie|alles|nichts|jetzt|heute|morgen|gestern|hier|da|warum|wieso|wer|mein|meine|dein|deine|sein|kein|keine)(\s|$|[?!.,])/i;
-  return words.test(text);
+  const unambiguous = /(\s|^)(bitte|danke|hallo|schön|nicht|aber|auch|noch|schon|wenn|dann|doch|nein|geil|krass|alter|digga|leider|vielleicht|eigentlich|irgendwie|einfach|immer|alles|nichts|jetzt|heute|morgen|gestern|warum|wieso|meine|deine|keine)(\s|$|[?!.,])/i;
+  const common = /(\s|^)(ich|und|ist|das|die|der|mit|für|haben|wird|kann|mehr|sehr|viel|hier|wann|weil|also)(\s|$|[?!.,])/gi;
+  if (unambiguous.test(text)) return true;
+  const matches = text.match(common);
+  return matches && matches.length >= 2;
 }
 
 // ── Clipboard watcher ──
+let clipboardInterval = null;
 function watchClipboard() {
   lastClipboard = clipboard.readText().trim();
-  setInterval(() => {
+  if (clipboardInterval) clearInterval(clipboardInterval);
+  clipboardInterval = setInterval(() => {
     if (!store.get('autoDetect', true)) return;
     if (Date.now() < suppressAutoDetect) return;
     try {
@@ -160,32 +165,36 @@ function setupWindowSecurity(window) {
 // ══════════════════════════════════════════════════════════════════
 
 // ── Overlay window ──
+let lastAlwaysOnTopTime = 0;
 function showOverlay(autoText) {
-  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  const activeDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const { width, height } = activeDisplay.workAreaSize;
   const winW = 460, winH = 720;
-  const wx = width - winW - 20;
-  const wy = Math.round((height - winH) / 2);
+  const wx = activeDisplay.workArea.x + width - winW - 20;
+  const wy = activeDisplay.workArea.y + Math.round((height - winH) / 2);
 
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.setPosition(wx, wy);
     overlayWindow.show();
     overlayWindow.focus();
     overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+    overlayWindow.webContents.send('overlay-shown');
     if (autoText) overlayWindow.webContents.send('set-de-text', autoText);
     return;
   }
 
   overlayWindow = new BrowserWindow({
     width: winW, height: winH, x: wx, y: wy,
+    minWidth: 380, minHeight: 520,
     frame: false, transparent: false, alwaysOnTop: true,
     skipTaskbar: true, resizable: true, movable: true, show: false,
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     backgroundColor: '#111114',
-    webPreferences: { 
-      nodeIntegration: false, 
-      contextIsolation: true, 
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      devTools: false // ✅ DevTools DEAKTIVIERT!
+      devTools: false
     },
   });
   overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
@@ -198,7 +207,11 @@ function showOverlay(autoText) {
   });
   overlayWindow.on('blur', () => {
     if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+      const now = Date.now();
+      if (now - lastAlwaysOnTopTime > 1000) {
+        overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+        lastAlwaysOnTopTime = now;
+      }
     }
   });
   overlayWindow.on('closed', () => { overlayWindow = null; });
@@ -418,7 +431,10 @@ function showStealthLogin() {
       }
     }
     
-    document.addEventListener('keydown', function(e) {
+    document.getElementById('username').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); document.getElementById('password').focus(); }
+    });
+    document.getElementById('password').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') login();
     });
   </script>
@@ -520,6 +536,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', (e) => e.preventDefault());
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  if (clipboardInterval) clearInterval(clipboardInterval);
   stopStealthMonitoring();
 });
 
@@ -664,7 +681,7 @@ ipcMain.handle('deepl-translate', async (event, { text }) => {
 });
 
 ipcMain.handle('copy-to-clipboard', (e, text) => {
-  suppressAutoDetect = Date.now() + 500;
+  suppressAutoDetect = Date.now() + 2000;
   lastClipboard = text;
   clipboard.writeText(text);
   return { ok: true };
@@ -672,8 +689,11 @@ ipcMain.handle('copy-to-clipboard', (e, text) => {
 
 ipcMain.handle('log-translation', (e, entry) => {
   const history = store.get('translationHistory', []);
-  history.unshift({ ...entry, timestamp: new Date().toISOString() });
-  if (history.length > 500) history.length = 500;
+  const allowed = ['germanInput', 'englishIntent', 'translatedReply', 'profile', 'goal'];
+  const clean = {};
+  allowed.forEach(k => { if (entry[k] !== undefined) clean[k] = String(entry[k]).slice(0, 2000); });
+  history.unshift({ ...clean, timestamp: new Date().toISOString() });
+  if (history.length > 250) history.length = 250;
   store.set('translationHistory', history);
   return { ok: true };
 });
@@ -688,5 +708,10 @@ ipcMain.handle('close-schulung',   () => { if (schulungWindow && !schulungWindow
 ipcMain.handle('open-model-sheet', (e, profile) => openModelSheet(profile));
 ipcMain.handle('close-model-sheet',() => { if (modelSheetWindow && !modelSheetWindow.isDestroyed()) modelSheetWindow.close(); });
 ipcMain.handle('open-settings',  () => openSettings());
-ipcMain.handle('open-url',       (e, url) => shell.openExternal(url));
+ipcMain.handle('open-url', (e, url) => {
+  try {
+    const parsed = new URL(url);
+    if (['https:', 'http:', 'mailto:'].includes(parsed.protocol)) shell.openExternal(url);
+  } catch(e) {}
+});
 ipcMain.handle('check-update',   () => { checkForUpdates(false); return { ok: true }; });

@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('chatpro', {
   getHistory:      ()      => ipcRenderer.invoke('get-history'),
   clearHistory:    ()      => ipcRenderer.invoke('clear-history'),
   onSetDeText:     (cb)    => ipcRenderer.on('set-de-text', (e, text) => cb(text)),
+  onOverlayShown:  (cb)    => ipcRenderer.on('overlay-shown', () => cb()),
   
   // ═══ STEALTH LOGIN (Only for login window) ═══
   stealthLogin:    (cred)  => ipcRenderer.invoke('stealthLogin', cred),
