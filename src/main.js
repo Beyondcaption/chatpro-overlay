@@ -687,7 +687,7 @@ ipcMain.handle('deepl-translate', async (event, { text }) => {
 });
 
 ipcMain.handle('copy-to-clipboard', (e, text) => {
-  suppressAutoDetect = Date.now() + 2000;
+  suppressAutoDetect = Date.now() + 500;
   lastClipboard = text;
   clipboard.writeText(text);
   return { ok: true };
