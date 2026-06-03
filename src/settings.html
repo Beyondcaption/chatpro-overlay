@@ -117,7 +117,9 @@ function updateToggle() {
 }
 
 async function saveSettings() {
-  var apiKey = document.getElementById('apiKey').value.trim();
+  // Strip non-printable-ASCII (zero-width spaces, smart quotes from copy-paste) —
+  // HTTP headers are Latin-1 only, a stray Unicode char crashes fetch on x-api-key
+  var apiKey = document.getElementById('apiKey').value.replace(/[^\x21-\x7E]/g, '');
   var deeplKey = document.getElementById('deeplKey').value.trim();
   var hotkey = document.getElementById('hotkey').value.trim() || 'CommandOrControl+Shift+T';
   await window.chatpro.saveSettings({ apiKey: apiKey, deeplKey: deeplKey, hotkey: hotkey, autoDetect: autoDetect });

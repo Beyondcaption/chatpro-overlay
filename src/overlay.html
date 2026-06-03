@@ -413,6 +413,7 @@ async function doDeepL(text) {
 async function analyzeMood() {
   var de = document.getElementById('deInput').value.trim();
   if (!de) { document.getElementById('deInput').focus(); return; }
+  if (!apiKey) apiKey = await window.chatpro.getApiKey();
   if (!apiKey) { window.chatpro.openSettings(); return; }
   var btn = document.getElementById('moodBtn');
   btn.textContent = '…'; btn.disabled = true;
@@ -441,6 +442,7 @@ async function generateReplies() {
     else document.getElementById('enInput').focus();
     return;
   }
+  if (!apiKey) apiKey = await window.chatpro.getApiKey();
   if (!apiKey) { window.chatpro.openSettings(); return; }
 
   clearTimeout(translateTimer); // cancel any pending DeepL update while viewing results
@@ -595,7 +597,9 @@ if (ttsOk) window.speechSynthesis.getVoices();
 
 // ── Claude API ──
 async function callClaude(system, userMsg, _retry) {
-  var key = apiKey || await window.chatpro.getApiKey();
+  // Sanitize: HTTP headers are Latin-1 only; strip any non-printable-ASCII char
+  // (zero-width space, smart quotes) a copy-pasted key may carry, else fetch throws
+  var key = (apiKey || await window.chatpro.getApiKey() || '').replace(/[^\x21-\x7E]/g, '');
   var res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
