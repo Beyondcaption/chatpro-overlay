@@ -603,10 +603,32 @@ function playAudio(text) {
 if (ttsOk) window.speechSynthesis.getVoices();
 
 // ── Claude API ──
+// Strip lone UTF-16 surrogates (half emojis) — a pasted fan message can carry a
+// truncated emoji. JSON.stringify ships it as an unpaired \uXXXX and the API rejects
+// the whole body ("no low surrogate in string"). Drop the broken half so Generate
+// never crashes on bad input. Mirrors the Latin-1 key sanitization above.
+function stripLoneSurrogates(s) {
+  return String(s == null ? '' : s)
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')  // high not followed by low
+    .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, ''); // low not preceded by high
+}
+
 async function callClaude(system, userMsg, model, _retry) {
   // Sanitize: HTTP headers are Latin-1 only; strip any non-printable-ASCII char
   // (zero-width space, smart quotes) a copy-pasted key may carry, else fetch throws
   var key = (apiKey || await window.chatpro.getApiKey() || '').replace(/[^\x21-\x7E]/g, '');
+
+  // Clean broken emojis out of every string that goes into the body.
+  // system is a string (mood) or an array of {type,text,cache_control} blocks (generate).
+  var safeUser = stripLoneSurrogates(userMsg);
+  var safeSystem = Array.isArray(system)
+    ? system.map(function(b) {
+        return (b && typeof b.text === 'string')
+          ? Object.assign({}, b, { text: stripLoneSurrogates(b.text) })
+          : b;
+      })
+    : stripLoneSurrogates(system);
+
   var res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -618,8 +640,8 @@ async function callClaude(system, userMsg, model, _retry) {
     body: JSON.stringify({
       model: model || 'claude-sonnet-4-6',
       max_tokens: yapperMode ? 1800 : 1200,
-      system: system,
-      messages: [{ role: 'user', content: userMsg }]
+      system: safeSystem,
+      messages: [{ role: 'user', content: safeUser }]
     })
   });
 
