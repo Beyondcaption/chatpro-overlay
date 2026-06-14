@@ -582,6 +582,9 @@ async function useReply(i, text) {
   var btn = document.getElementById('use' + i);
   if (btn) { btn.textContent = '✓ Copied!'; btn.classList.add('done'); }
 
+  // Attribute this reply to the logged-in chatter for QA (fire-and-forget).
+  try { window.chatpro.reportChatter({ account: selectedProfile ? selectedProfile.name : '', text: text }); } catch(e) {}
+
   // Log to history
   var de = document.getElementById('deInput').value.trim();
   var en = document.getElementById('enInput').value.trim();
@@ -698,6 +701,7 @@ function copyText(btn, text) {
     btn.textContent = '✓'; btn.classList.add('ok');
     setTimeout(function() { btn.textContent = orig; btn.classList.remove('ok'); }, 1500);
   });
+  try { window.chatpro.reportChatter({ account: selectedProfile ? selectedProfile.name : '', text: text }); } catch(e) {}
 }
 // ── History ──
 var historyVisible = false;

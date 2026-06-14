@@ -8,6 +8,10 @@ const fs   = require('fs');
 // ═══════════════════════════════════════════════════════════════════
 
 const SERVER_URL = 'https://monitoring-relay-production.up.railway.app';
+// chatpro-ops QA backend: log which logged-in employee produced each used reply,
+// so the QA dashboard can attribute flagged mistakes to a chatter. Read-only ops.
+const OPS_URL = 'https://chatpro-ops-production.up.railway.app';
+const OPS_LOG_KEY = 'logkey_3a38568e233447d9cb9a4d1695dc3007';
 
 // ── APP TOKEN (never exposed to renderer process) ──
 const APP_TOKEN = process.env.CHATPRO_APP_TOKEN || 'cp-9f3k-mRt2-Xw8n-2026';
@@ -667,6 +671,28 @@ ipcMain.handle('log-translation', (e, entry) => {
   if (history.length > 500) history.length = 500;
   store.set('translationHistory', history);
   return { ok: true };
+});
+
+// Fire-and-forget: report the logged-in employee + used reply to chatpro-ops so the
+// QA dashboard can name who made a flagged mistake. Never blocks or surfaces errors.
+ipcMain.handle('report-chatter', (e, { account, text } = {}) => {
+  try {
+    const who = currentUser || store.get('_sys', null);
+    const employee = !who ? '' : (typeof who === 'string' ? who : (who.name || who.username || ''));
+    if (!employee || !text) return { ok: false };
+    const https = require('https');
+    const body = JSON.stringify({ employee, account: account || '', text });
+    const u = new URL(`${OPS_URL}/api/chatter-log`);
+    const req = https.request({
+      hostname: u.hostname, path: u.pathname, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'x-log-key': OPS_LOG_KEY },
+    }, (res) => { res.on('data', () => {}); res.on('end', () => {}); });
+    req.on('error', () => {});
+    req.setTimeout(5000, () => req.destroy());
+    req.write(body);
+    req.end();
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
 });
 
 ipcMain.handle('get-history', () => store.get('translationHistory', []));

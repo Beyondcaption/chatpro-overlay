@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('chatpro', {
   closeModelSheet: ()       => ipcRenderer.invoke('close-model-sheet'),
   getCreatorProfiles: ()  => ipcRenderer.invoke('get-creator-profiles'),
   logTranslation:  (e)     => ipcRenderer.invoke('log-translation', e),
+  reportChatter:   (e)     => ipcRenderer.invoke('report-chatter', e),
   getHistory:      ()      => ipcRenderer.invoke('get-history'),
   clearHistory:    ()      => ipcRenderer.invoke('clear-history'),
   onSetDeText:     (cb)    => ipcRenderer.on('set-de-text', (e, text) => cb(text)),
