@@ -248,6 +248,7 @@ let deeplKey = '13d024f8-13bc-45cb-b60b-b4e8988492c0';
 let activeGoal = null;
 let yapperMode = false;
 let creatorProfiles = [];
+var learnedRules = '';
 let selectedProfile = null;
 let lastDeText = '';
 let currentUtterance = null;
@@ -311,6 +312,10 @@ async function init() {
 
   renderTemplates();
   fetchProfiles();
+  try {
+    var lr = await window.chatpro.getLearnedRules(null);
+    learnedRules = (lr && lr.block) ? lr.block : '';
+  } catch (e) { learnedRules = ''; }
 }
 init();
 
@@ -486,7 +491,8 @@ async function generateReplies() {
   // Prompt caching: the large static persona prompt is identical on every call,
   // so cache it (90% cheaper on hits). Dynamic context goes in a second, uncached block.
   var systemExtra = profileCtx + yapperExtra + moodCtx + goalCtx;
-  var systemBlocks = [{ type: 'text', text: systemBase, cache_control: { type: 'ephemeral' } }];
+  var systemBaseWithRules = learnedRules ? (systemBase + '\n\n' + learnedRules) : systemBase;
+  var systemBlocks = [{ type: 'text', text: systemBaseWithRules, cache_control: { type: 'ephemeral' } }];
   if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
 
   var user = yapperMode

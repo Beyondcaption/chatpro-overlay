@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('chatpro', {
   openModelSheet:  (p)      => ipcRenderer.invoke('open-model-sheet', p),
   closeModelSheet: ()       => ipcRenderer.invoke('close-model-sheet'),
   getCreatorProfiles: ()  => ipcRenderer.invoke('get-creator-profiles'),
+  getLearnedRules: (account) => ipcRenderer.invoke('get-learned-rules', account),
   logTranslation:  (e)     => ipcRenderer.invoke('log-translation', e),
   reportChatter:   (e)     => ipcRenderer.invoke('report-chatter', e),
   getHistory:      ()      => ipcRenderer.invoke('get-history'),

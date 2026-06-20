@@ -1,12 +1,17 @@
 {
   "name": "chatpro-overlay",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "ChatPro — German reply overlay for OnlyFans chatters",
   "main": "src/main.js",
   "scripts": {
+    "gensecrets": "node scripts/gen-secrets.js",
+    "prestart": "node scripts/gen-secrets.js",
     "start": "electron .",
+    "prebuild:win": "node scripts/gen-secrets.js",
     "build:win": "electron-builder --win --x64",
+    "prebuild:mac": "node scripts/gen-secrets.js",
     "build:mac": "electron-builder --mac --x64 --arm64",
+    "prebuild:all": "node scripts/gen-secrets.js",
     "build:all": "electron-builder --win --mac --x64"
   },
   "dependencies": {

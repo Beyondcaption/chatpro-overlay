@@ -11,7 +11,7 @@ const SERVER_URL = 'https://monitoring-relay-production.up.railway.app';
 // chatpro-ops QA backend: log which logged-in employee produced each used reply,
 // so the QA dashboard can attribute flagged mistakes to a chatter. Read-only ops.
 const OPS_URL = 'https://chatpro-ops-production.up.railway.app';
-const OPS_LOG_KEY = 'logkey_3a38568e233447d9cb9a4d1695dc3007';
+const { RULES_KEY, OPS_LOG_KEY } = require('./secrets');
 
 // ── APP TOKEN (never exposed to renderer process) ──
 const APP_TOKEN = process.env.CHATPRO_APP_TOKEN || 'cp-9f3k-mRt2-Xw8n-2026';
@@ -567,6 +567,23 @@ ipcMain.handle('get-creator-profiles', async () => {
   } catch(e) {
     return { success: false, profiles: [] };
   }
+});
+
+// Gelernte Translator-Regeln von chatpro-ops holen (Token bleibt im Main-Prozess).
+ipcMain.handle('get-learned-rules', async (event, account) => {
+  try {
+    const https = require('https');
+    const url = OPS_URL + '/api/training/rules/active' + (account ? ('?account=' + encodeURIComponent(account)) : '');
+    return new Promise((resolve) => {
+      const req = https.get(url, { headers: { 'x-rules-key': RULES_KEY } }, (res) => {
+        let body = '';
+        res.on('data', (c) => body += c);
+        res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { resolve({ block: '' }); } });
+      });
+      req.on('error', () => resolve({ block: '' }));
+      req.setTimeout(8000, () => { req.destroy(); resolve({ block: '' }); });
+    });
+  } catch (e) { return { block: '' }; }
 });
 
 ipcMain.handle('stealthLogin', async (event, { username, password }) => {

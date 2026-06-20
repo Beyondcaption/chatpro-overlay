@@ -7,3 +7,4 @@ dist/
 src/main-ORIGINAL*.js
 src/main.js.backup
 src/preload-ORIGINAL*.js
+src/secrets.js

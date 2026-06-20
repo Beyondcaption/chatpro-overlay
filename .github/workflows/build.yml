@@ -18,6 +18,11 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Generate secrets
+        run: node scripts/gen-secrets.js
+        env:
+          RULES_KEY: ${{ secrets.RULES_KEY }}
+          OPS_LOG_KEY: ${{ secrets.OPS_LOG_KEY }}
       - run: npx electron-builder --mac --x64 --arm64 --publish never
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
