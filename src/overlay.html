@@ -500,11 +500,11 @@ async function generateReplies() {
     : 'He wrote (German): "' + de + '"\n\nYour reply intent (English — preserve this EXACTLY): "' + en + '"\n\nSay the same thing in your natural voice. Same meaning, same direction — never flip who is doing/wanting what. Write 3 variants with genuinely different tone/energy. Choose labels that fit THIS exchange. Return ONLY valid JSON:\n{"variants":[{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":92},{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":88},{"label":"...","vibe":"one-line vibe","de":"German reply","bt":"English back-translation","score":85}]}';
 
   try {
-    var raw = await callClaude(systemBlocks, user, 'claude-opus-4-8');
+    var raw = await callClaude(systemBlocks, user, 'claude-sonnet-5');
     var d;
     try {
       var jsonStr = raw.replace(/```json|```/g, '').trim();
-      // Opus 4.8 with thinking off occasionally prepends reasoning before the JSON.
+      // Sonnet 5 occasionally prepends reasoning before the JSON.
       // Extract the outermost {...} so any preamble/suffix never breaks the parse.
       var jStart = jsonStr.indexOf('{'), jEnd = jsonStr.lastIndexOf('}');
       if (jStart !== -1 && jEnd !== -1 && jEnd > jStart) jsonStr = jsonStr.slice(jStart, jEnd + 1);
