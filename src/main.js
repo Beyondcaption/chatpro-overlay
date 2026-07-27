@@ -86,8 +86,24 @@ let suppressAutoDetect = 0;
 let isLoggedIn = false;
 let currentUser = null;
 
-// ── looksGerman ──
-function looksGerman(text) {
+// ── looksInLanguage ──
+// Generalized from the original looksGerman() — same principle per language:
+// diacritics are a fast-path match, the word list stays restricted to
+// unambiguous words that don't collide with English (or the other two
+// languages) to avoid false-positive auto-detect triggers.
+function looksInLanguage(text, lang) {
+  if (lang === 'es') {
+    if (/[¿¡ñÑ]/.test(text)) return true;
+    if (/[áéíóú]/i.test(text)) return true;
+    const words = /(\s|^)(que|con|para|pero|como|hola|gracias|quiero|tengo|eres|estas|estás|hoy|mañana|ayer|porque|nunca|siempre|mucho|poco|bien|mal|amor|contigo|conmigo|verdad|claro|entonces|todavia|todavía|tambien|también|nada|algo|alguien|donde|dónde|cuando|cuándo)(\s|$|[?!.,])/i;
+    return words.test(text);
+  }
+  if (lang === 'it') {
+    if (/[àèéìòù]/i.test(text)) return true;
+    const words = /(\s|^)(che|sono|tuo|tua|voglio|sei|ciao|grazie|perche|perché|adesso|domani|ieri|oggi|sempre|niente|qualcosa|qualcuno|dove|quando|come|allora|davvero|vabbe|vabbè|boh|magari|piuttosto|comunque)(\s|$|[?!.,])/i;
+    return words.test(text);
+  }
+  // de (default)
   if (/[äöüÄÖÜß]/.test(text)) return true;
   // Only clearly German-only words — excludes English false positives:
   // removed: er,sie,es,ist,war,hat,haben,was,wo,da,mal,nur,so,ja,nein,hey,okay,am,an,bei,gut,alter,wer,hier,nie,im,viel,ach
@@ -108,7 +124,8 @@ function watchClipboard() {
         lastClipboard = text;
         // If overlay is open and focused, user is copying from within it — don't re-trigger
         if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible() && overlayWindow.isFocused()) return;
-        if (looksGerman(text)) showOverlay(text);
+        const lang = store.get('language', 'de');
+        if (looksInLanguage(text, lang)) showOverlay(text);
       }
     } catch(e) {}
   }, 400);
@@ -529,6 +546,7 @@ ipcMain.handle('get-settings', () => ({
   hotkey:     store.get('hotkey', 'CommandOrControl+Shift+T'),
   autoDetect: store.get('autoDetect', true),
   subProfile: store.get('subProfile', ''),
+  language:   store.get('language', 'de'),
   version:    app.getVersion(),
 }));
 
@@ -538,7 +556,8 @@ ipcMain.handle('save-settings', (e, s) => {
   if (s.hotkey     !== undefined) store.set('hotkey',     s.hotkey);
   if (s.autoDetect !== undefined) store.set('autoDetect', s.autoDetect);
   if (s.subProfile !== undefined) store.set('subProfile', s.subProfile);
-  
+  if (s.language   !== undefined) store.set('language',   s.language);
+
   registerHotkey();
   return { ok: true };
 });
@@ -642,11 +661,15 @@ ipcMain.handle('stealthLogin', async (event, { username, password }) => {
 });
 
 // DeepL translation — proxied through Railway server, key never in binary
-ipcMain.handle('deepl-translate', async (event, { text }) => {
+// lang is the source language of `text` (de/es/it); back-translation target is always English.
+// NOTE: server-side support for `lang` is unverified here (backend repo not present
+// in this checkout) — if ES/IT back-translation comes back wrong or empty, the
+// /api/deepl endpoint on the Railway backend needs a matching fix.
+ipcMain.handle('deepl-translate', async (event, { text, lang }) => {
   try {
     const https = require('https');
     return new Promise((resolve) => {
-      const body = JSON.stringify({ text });
+      const body = JSON.stringify({ text, lang: lang || 'de' });
       const parsedUrl = new URL(`${SERVER_URL}/api/deepl`);
       const req = https.request({
         hostname: parsedUrl.hostname,
