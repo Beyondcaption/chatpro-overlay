@@ -22,7 +22,10 @@ html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:va
 .tb-left { display:flex; align-items:center; gap:8px; pointer-events:none; }
 .tb-logo { font-size:12px; font-weight:700; color:var(--t2); }
 .tb-hotkey { font-size:10px; color:var(--t4); font-family:'JetBrains Mono',monospace; background:var(--s2); border:1px solid var(--b1); border-radius:4px; padding:2px 7px; }
-.tb-right { display:flex; gap:6px; -webkit-app-region:no-drag; }
+.tb-right { display:flex; align-items:center; gap:6px; -webkit-app-region:no-drag; }
+.tb-lang-badge { font-size:11px; font-weight:700; color:var(--pink); background:var(--pink-dim); border:1px solid rgba(255,77,143,0.3); border-radius:4px; padding:3px 8px; letter-spacing:0.03em; transition:background 0.2s,box-shadow 0.2s; }
+.tb-lang-badge.flash { animation:flash-lang 1.4s ease; }
+@keyframes flash-lang { 0%,100% { box-shadow:none; } 30% { box-shadow:0 0 0 3px rgba(255,77,143,0.35); } }
 .tb-btn { background:none; border:none; color:var(--t3); cursor:pointer; font-size:14px; padding:2px 5px; border-radius:4px; }
 .tb-btn:hover { color:var(--t1); background:var(--s2); }
 .tb-btn.close:hover { color:var(--red); }
@@ -159,6 +162,7 @@ html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:va
     <span class="tb-hotkey" id="hotkeyLabel">Ctrl+Shift+T</span>
   </div>
   <div class="tb-right">
+    <span class="tb-lang-badge" id="tbLangBadge" title="Active language">DE</span>
     <button class="tb-btn" title="Translation History" onclick="toggleHistory()">🕘</button>
     <button class="tb-btn" title="Training" onclick="window.chatpro.openSchulung()">📚</button>
     <button class="tb-btn" onclick="window.chatpro.openSettings()">⚙</button>
@@ -321,6 +325,7 @@ async function init() {
     lbl.textContent = '← auto-detected';
     setTimeout(function() { lbl.textContent = ''; }, 2000);
     document.getElementById('enInput').focus();
+    flashLangBadge();
     scheduleTranslate();
   });
   window.chatpro.onOverlayShown(function() {
@@ -424,7 +429,20 @@ function applyLangUI() {
   if (input) input.placeholder = 'Paste ' + L.nameEn + ' message here…';
   var empty = document.getElementById('emptyStateText');
   if (empty) empty.innerHTML = 'Paste the ' + L.nameEn + ' message<br>and your English reply,<br>then hit ⚡ Generate';
+  var badge = document.getElementById('tbLangBadge');
+  if (badge) badge.textContent = L.flag + ' ' + L.pillLabel;
   renderLangPills();
+}
+
+// Briefly highlights the title-bar language badge so a chatter glancing at
+// the top-right corner immediately confirms which language just came in,
+// without having to look down at the lang-pill row.
+function flashLangBadge() {
+  var badge = document.getElementById('tbLangBadge');
+  if (!badge) return;
+  badge.classList.remove('flash');
+  void badge.offsetWidth; // restart animation if it's already mid-flash
+  badge.classList.add('flash');
 }
 
 function applyLanguage(code) {
