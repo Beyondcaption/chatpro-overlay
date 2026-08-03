@@ -317,6 +317,13 @@ const LANGUAGES = {
 // ── Init ──
 async function init() {
   // Register IPC listeners first — before any await so events are never missed
+  window.chatpro.onAutoSwitchLanguage(function(code) {
+    // Fired by main.js right before set-de-text when the clipboard watcher
+    // detected a clear, multi-signal language switch. applyLanguage() clears
+    // the input/results (same as a manual switch) — the incoming set-de-text
+    // that follows immediately after fills it back in with the new message.
+    applyLanguage(code);
+  });
   window.chatpro.onSetDeText(function(text) {
     var el = document.getElementById('deInput');
     el.value = text;

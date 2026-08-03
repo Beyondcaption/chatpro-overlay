@@ -79,6 +79,7 @@ let modelSheetWindow = null;
 let tray           = null;
 let lastClipboard  = '';
 let suppressAutoDetect = 0;
+let overlayFocusedSince = 0;
 
 // ══════════════════════════════════════════════════════════════════
 // LOGIN STATE
@@ -86,29 +87,40 @@ let suppressAutoDetect = 0;
 let isLoggedIn = false;
 let currentUser = null;
 
-// ── looksInLanguage ──
-// Generalized from the original looksGerman() — same principle per language:
-// diacritics are a fast-path match, the word list stays restricted to
-// unambiguous words that don't collide with English (or the other two
-// languages) to avoid false-positive auto-detect triggers.
+// ── Language detection (scored) ──
+// Each language has a diacritic pattern (unambiguous, worth 2 points) and a
+// word list restricted to words that don't collide with English or the other
+// two languages (worth 1 point per distinct match). Scoring — not a single
+// boolean match — is what lets us tell a genuine foreign-language message
+// apart from a single borrowed word ("ciao", "si", "yes") dropped into an
+// otherwise clearly German/Spanish/Italian sentence.
+const LANG_PATTERNS = {
+  es: {
+    diacritics: /[¿¡ñÑáéíóúÁÉÍÓÚ]/,
+    words: /(\s|^)(que|con|para|pero|como|hola|gracias|quiero|tengo|eres|estas|estás|hoy|mañana|ayer|porque|nunca|siempre|mucho|poco|bien|mal|amor|contigo|conmigo|verdad|claro|entonces|todavia|todavía|tambien|también|nada|algo|alguien|donde|dónde|cuando|cuándo)(\s|$|[?!.,])/gi,
+  },
+  it: {
+    diacritics: /[àèéìòù]/i,
+    words: /(\s|^)(che|sono|tuo|tua|voglio|sei|ciao|grazie|perche|perché|adesso|domani|ieri|oggi|sempre|niente|qualcosa|qualcuno|dove|quando|come|allora|davvero|vabbe|vabbè|boh|magari|piuttosto|comunque)(\s|$|[?!.,])/gi,
+  },
+  de: {
+    // removed from word list: er,sie,es,ist,war,hat,haben,was,wo,da,mal,nur,so,ja,nein,hey,okay,am,an,bei,gut,alter,wer,hier,nie,im,viel,ach
+    diacritics: /[äöüÄÖÜß]/,
+    words: /(\s|^)(ich|du|wir|ihr|ein|eine|der|die|das|und|für|mit|nicht|aber|auch|noch|schon|wie|wann|wenn|dann|doch|bitte|danke|hallo|auf|von|zu|nach|vor|sehr|mehr|schön|toll|geil|krass|digga|echt|genau|klar|leider|vielleicht|eigentlich|irgendwie|einfach|immer|alles|nichts|jetzt|heute|morgen|gestern|warum|wieso|mein|meine|dein|deine|sein|kein|keine|ne|nee)(\s|$|[?!.,])/gi,
+  },
+};
+
+function scoreLanguage(text, lang) {
+  const p = LANG_PATTERNS[lang];
+  let score = 0;
+  if (p.diacritics.test(text)) score += 2;
+  const matches = text.match(p.words);
+  if (matches) score += matches.length;
+  return score;
+}
+
 function looksInLanguage(text, lang) {
-  if (lang === 'es') {
-    if (/[¿¡ñÑ]/.test(text)) return true;
-    if (/[áéíóú]/i.test(text)) return true;
-    const words = /(\s|^)(que|con|para|pero|como|hola|gracias|quiero|tengo|eres|estas|estás|hoy|mañana|ayer|porque|nunca|siempre|mucho|poco|bien|mal|amor|contigo|conmigo|verdad|claro|entonces|todavia|todavía|tambien|también|nada|algo|alguien|donde|dónde|cuando|cuándo)(\s|$|[?!.,])/i;
-    return words.test(text);
-  }
-  if (lang === 'it') {
-    if (/[àèéìòù]/i.test(text)) return true;
-    const words = /(\s|^)(che|sono|tuo|tua|voglio|sei|ciao|grazie|perche|perché|adesso|domani|ieri|oggi|sempre|niente|qualcosa|qualcuno|dove|quando|come|allora|davvero|vabbe|vabbè|boh|magari|piuttosto|comunque)(\s|$|[?!.,])/i;
-    return words.test(text);
-  }
-  // de (default)
-  if (/[äöüÄÖÜß]/.test(text)) return true;
-  // Only clearly German-only words — excludes English false positives:
-  // removed: er,sie,es,ist,war,hat,haben,was,wo,da,mal,nur,so,ja,nein,hey,okay,am,an,bei,gut,alter,wer,hier,nie,im,viel,ach
-  const words = /(\s|^)(ich|du|wir|ihr|ein|eine|der|die|das|und|für|mit|nicht|aber|auch|noch|schon|wie|wann|wenn|dann|doch|bitte|danke|hallo|auf|von|zu|nach|vor|sehr|mehr|schön|toll|geil|krass|digga|echt|genau|klar|leider|vielleicht|eigentlich|irgendwie|einfach|immer|alles|nichts|jetzt|heute|morgen|gestern|warum|wieso|mein|meine|dein|deine|sein|kein|keine|ne|nee)(\s|$|[?!.,])/i;
-  return words.test(text);
+  return scoreLanguage(text, lang) > 0;
 }
 
 // ── Clipboard watcher ──
@@ -116,16 +128,40 @@ function watchClipboard() {
   lastClipboard = clipboard.readText().trim();
   if (clipboardInterval) clearInterval(clipboardInterval);
   clipboardInterval = setInterval(() => {
+    const overlayFocused = !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible() && overlayWindow.isFocused());
+    if (overlayFocused) {
+      if (!overlayFocusedSince) overlayFocusedSince = Date.now();
+    } else {
+      overlayFocusedSince = 0;
+    }
+
     if (!store.get('autoDetect', true)) return;
     if (Date.now() < suppressAutoDetect) return;
     try {
       const text = clipboard.readText().trim();
       if (text && text !== lastClipboard && text.length > 2 && text.length < 3000) {
         lastClipboard = text;
-        // If overlay is open and focused, user is copying from within it — don't re-trigger
-        if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible() && overlayWindow.isFocused()) return;
-        const lang = store.get('language', 'de');
-        if (looksInLanguage(text, lang)) showOverlay(text);
+        // If overlay is open and focused, user is copying from within it — don't re-trigger.
+        // Capped at 3s: alwaysOnTop windows can occasionally fail to release OS focus on
+        // Windows, which would otherwise disable auto-detect until the overlay is closed.
+        if (overlayFocused && (Date.now() - overlayFocusedSince) < 3000) return;
+
+        const currentLang = store.get('language', 'de');
+        const scores = { de: scoreLanguage(text, 'de'), es: scoreLanguage(text, 'es'), it: scoreLanguage(text, 'it') };
+        let best = currentLang, bestScore = scores[currentLang];
+        for (const l of ['de', 'es', 'it']) {
+          if (scores[l] > bestScore) { best = l; bestScore = scores[l]; }
+        }
+
+        // Switch only on a clear, multi-signal match (>=2 points) for a language
+        // other than the active one — a single borrowed word ("ciao", "si", "yes")
+        // scores 1 and never flips the active language on its own.
+        if (store.get('autoLangSwitch', true) && best !== currentLang && bestScore >= 2) {
+          store.set('language', best);
+          showOverlay(text, best);
+        } else if (scores[currentLang] > 0) {
+          showOverlay(text);
+        }
       }
     } catch(e) {}
   }, 400);
@@ -185,7 +221,7 @@ function setupWindowSecurity(window) {
 // ── Overlay window ──
 let lastAlwaysOnTopTime = 0;
 let clipboardInterval = null;
-function showOverlay(autoText) {
+function showOverlay(autoText, switchLang) {
   const activeDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const { width, height } = activeDisplay.workAreaSize;
   const winW = 460, winH = 720;
@@ -200,12 +236,15 @@ function showOverlay(autoText) {
     overlayWindow.webContents.send('overlay-shown');
     if (autoText) {
       lastClipboard = autoText;
-      if (overlayWindow.webContents.isLoading()) {
-        overlayWindow.webContents.once('did-finish-load', () => {
-          if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('set-de-text', autoText);
-        });
-      } else {
+      const sendText = () => {
+        if (!overlayWindow || overlayWindow.isDestroyed()) return;
+        if (switchLang) overlayWindow.webContents.send('auto-switch-language', switchLang);
         overlayWindow.webContents.send('set-de-text', autoText);
+      };
+      if (overlayWindow.webContents.isLoading()) {
+        overlayWindow.webContents.once('did-finish-load', sendText);
+      } else {
+        sendText();
       }
     }
     return;
@@ -232,7 +271,10 @@ function showOverlay(autoText) {
     overlayWindow.setAlwaysOnTop(true, 'screen-saver');
     overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     overlayWindow.webContents.send('overlay-shown');
-    if (autoText) overlayWindow.webContents.send('set-de-text', autoText);
+    if (autoText) {
+      if (switchLang) overlayWindow.webContents.send('auto-switch-language', switchLang);
+      overlayWindow.webContents.send('set-de-text', autoText);
+    }
   });
   overlayWindow.on('blur', () => {
     if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -541,22 +583,24 @@ app.on('will-quit', () => {
 // ══════════════════════════════════════════════════════════════════
 
 ipcMain.handle('get-settings', () => ({
-  apiKey:     store.get('apiKey', ''),
-  deeplKey:   store.get('deeplKey', ''),
-  hotkey:     store.get('hotkey', 'CommandOrControl+Shift+T'),
-  autoDetect: store.get('autoDetect', true),
-  subProfile: store.get('subProfile', ''),
-  language:   store.get('language', 'de'),
-  version:    app.getVersion(),
+  apiKey:         store.get('apiKey', ''),
+  deeplKey:       store.get('deeplKey', ''),
+  hotkey:         store.get('hotkey', 'CommandOrControl+Shift+T'),
+  autoDetect:     store.get('autoDetect', true),
+  autoLangSwitch: store.get('autoLangSwitch', true),
+  subProfile:     store.get('subProfile', ''),
+  language:       store.get('language', 'de'),
+  version:        app.getVersion(),
 }));
 
 ipcMain.handle('save-settings', (e, s) => {
-  if (s.apiKey     !== undefined) store.set('apiKey',     s.apiKey);
-  if (s.deeplKey   !== undefined) store.set('deeplKey',   s.deeplKey);
-  if (s.hotkey     !== undefined) store.set('hotkey',     s.hotkey);
-  if (s.autoDetect !== undefined) store.set('autoDetect', s.autoDetect);
-  if (s.subProfile !== undefined) store.set('subProfile', s.subProfile);
-  if (s.language   !== undefined) store.set('language',   s.language);
+  if (s.apiKey         !== undefined) store.set('apiKey',         s.apiKey);
+  if (s.deeplKey       !== undefined) store.set('deeplKey',       s.deeplKey);
+  if (s.hotkey         !== undefined) store.set('hotkey',         s.hotkey);
+  if (s.autoDetect     !== undefined) store.set('autoDetect',     s.autoDetect);
+  if (s.autoLangSwitch !== undefined) store.set('autoLangSwitch', s.autoLangSwitch);
+  if (s.subProfile     !== undefined) store.set('subProfile',     s.subProfile);
+  if (s.language       !== undefined) store.set('language',       s.language);
 
   registerHotkey();
   return { ok: true };

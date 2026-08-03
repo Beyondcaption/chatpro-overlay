@@ -72,8 +72,12 @@ h1 { font-size:15px; font-weight:700; color:var(--t2); margin-bottom:20px; }
   <div class="section">
     <div class="section-label">Auto-detect Clipboard</div>
     <div class="toggle-row">
-      <span class="toggle-label">Automatically detect German messages</span>
+      <span class="toggle-label">Automatically detect messages</span>
       <div class="toggle" id="autoDetectToggle" onclick="toggleAutoDetect()"></div>
+    </div>
+    <div class="toggle-row" style="margin-top:10px;">
+      <span class="toggle-label">Automatically switch language (DE/ES/IT)</span>
+      <div class="toggle" id="autoLangSwitchToggle" onclick="toggleAutoLangSwitch()"></div>
     </div>
   </div>
 
@@ -94,6 +98,7 @@ h1 { font-size:15px; font-weight:700; color:var(--t2); margin-bottom:20px; }
 
 <script>
 let autoDetect = true;
+let autoLangSwitch = true;
 
 async function init() {
   try {
@@ -102,6 +107,7 @@ async function init() {
     document.getElementById('deeplKey').value = s.deeplKey || '';
     document.getElementById('hotkey').value = s.hotkey || 'CommandOrControl+Shift+T';
     autoDetect = s.autoDetect !== false;
+    autoLangSwitch = s.autoLangSwitch !== false;
     updateToggle();
     if (s.version) document.getElementById('versionLabel').textContent = 'v' + s.version;
   } catch(e) { console.error('settings init error:', e); }
@@ -112,8 +118,13 @@ function toggleAutoDetect() {
   autoDetect = !autoDetect;
   updateToggle();
 }
+function toggleAutoLangSwitch() {
+  autoLangSwitch = !autoLangSwitch;
+  updateToggle();
+}
 function updateToggle() {
   document.getElementById('autoDetectToggle').classList.toggle('on', autoDetect);
+  document.getElementById('autoLangSwitchToggle').classList.toggle('on', autoLangSwitch);
 }
 
 async function saveSettings() {
@@ -122,7 +133,7 @@ async function saveSettings() {
   var apiKey = document.getElementById('apiKey').value.replace(/[^\x21-\x7E]/g, '');
   var deeplKey = document.getElementById('deeplKey').value.trim();
   var hotkey = document.getElementById('hotkey').value.trim() || 'CommandOrControl+Shift+T';
-  await window.chatpro.saveSettings({ apiKey: apiKey, deeplKey: deeplKey, hotkey: hotkey, autoDetect: autoDetect });
+  await window.chatpro.saveSettings({ apiKey: apiKey, deeplKey: deeplKey, hotkey: hotkey, autoDetect: autoDetect, autoLangSwitch: autoLangSwitch });
   var msg = document.getElementById('saveMsg');
   msg.style.display = 'block';
   setTimeout(function() { msg.style.display = 'none'; }, 2000);
