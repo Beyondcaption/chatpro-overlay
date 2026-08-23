@@ -742,6 +742,42 @@ ipcMain.handle('deepl-translate', async (event, { text, lang }) => {
   }
 });
 
+// Claude relay fallback — used by the overlay only when the direct call to
+// api.anthropic.com fails at network level (some ISPs block it; 082326 incident).
+// The chatter's own Anthropic key travels along in x-api-key; the relay forwards
+// the request 1:1 and stores nothing. Long timeout: generate with thinking can
+// legitimately take a while.
+ipcMain.handle('claude-relay', async (event, { apiKey, body } = {}) => {
+  try {
+    const https = require('https');
+    return new Promise((resolve) => {
+      const payload = JSON.stringify(body || {});
+      const parsedUrl = new URL(`${SERVER_URL}/api/claude`);
+      const req = https.request({
+        hostname: parsedUrl.hostname,
+        path: parsedUrl.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+          'x-app-token': APP_TOKEN,
+          'x-api-key': String(apiKey || '').replace(/[^\x21-\x7E]/g, '')
+        }
+      }, (res) => {
+        let data = '';
+        res.on('data', d => data += d);
+        res.on('end', () => resolve({ ok: true, status: res.statusCode, body: data }));
+      });
+      req.on('error', (e) => resolve({ ok: false, error: e.message }));
+      req.setTimeout(180000, () => { req.destroy(); resolve({ ok: false, error: 'Timeout' }); });
+      req.write(payload);
+      req.end();
+    });
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle('copy-to-clipboard', (e, text) => {
   suppressAutoDetect = Date.now() + 500;
   lastClipboard = text;

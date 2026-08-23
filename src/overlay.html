@@ -650,6 +650,8 @@ async function generateReplies() {
       ? '⏳ Claude is currently overloaded. Wait a moment and try again.'
       : e.message === 'bad_response'
       ? '⚠️ Unexpected response from Claude. Try again.'
+      : e.message === 'offline'
+      ? '🌐 Cannot reach Claude — check your internet connection (direct and relay route both failed).'
       : 'Error: ' + escHtml(e.message);
     document.getElementById('resultsScroll').innerHTML = '<div style="padding:16px;color:#ff5252;font-size:12px;line-height:1.7;">' + msg + '</div>';
   }
@@ -761,8 +763,12 @@ function stripLoneSurrogates(s) {
 
 async function callClaude(system, userMsg, model, _retry) {
   // Sanitize: HTTP headers are Latin-1 only; strip any non-printable-ASCII char
-  // (zero-width space, smart quotes) a copy-pasted key may carry, else fetch throws
-  var key = (apiKey || await window.chatpro.getApiKey() || '').replace(/[^\x21-\x7E]/g, '');
+  // (zero-width space, smart quotes) a copy-pasted key may carry, else fetch throws.
+  // Re-read from the store on every call: a key saved in Settings must take effect
+  // immediately, not only after an app restart (stale in-memory copy kept a renewed
+  // key from working, 082326).
+  var key = ((await window.chatpro.getApiKey()) || apiKey || '').replace(/[^\x21-\x7E]/g, '');
+  apiKey = key;
 
   // Clean broken emojis out of every string that goes into the body.
   // system is a string (mood) or an array of {type,text,cache_control} blocks (generate).
@@ -789,19 +795,32 @@ async function callClaude(system, userMsg, model, _retry) {
   };
   if (thinks) body.thinking = { type: 'adaptive' };
 
-  var res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify(body)
-  });
+  // Direct call first; if the network path to api.anthropic.com is blocked
+  // (some ISPs do — surfaces as "Failed to fetch"), fall back to the Railway
+  // relay, which forwards the request 1:1 including this key (082326 incident).
+  var status, raw;
+  try {
+    var res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify(body)
+    });
+    status = res.status;
+    raw = await res.text();
+  } catch (netErr) {
+    var relay = await window.chatpro.claudeRelay({ apiKey: key, body: body });
+    if (!relay || !relay.ok) throw new Error('offline');
+    status = relay.status;
+    raw = relay.body;
+  }
 
   // Overloaded — retry once after 3 seconds
-  if (res.status === 529 || res.status === 503) {
+  if (status === 529 || status === 503) {
     if (!_retry) {
       await new Promise(function(r) { setTimeout(r, 3000); });
       return callClaude(system, userMsg, model, true);
@@ -809,11 +828,13 @@ async function callClaude(system, userMsg, model, _retry) {
     throw new Error('overloaded');
   }
 
-  var data = await res.json();
+  var data;
+  try { data = JSON.parse(raw); }
+  catch (pe) { throw new Error('bad_response'); }
 
   if (data.error) {
     var code = data.error.type || '';
-    if (res.status === 401 || code === 'authentication_error') throw new Error('invalid_key');
+    if (status === 401 || code === 'authentication_error') throw new Error('invalid_key');
     if (code === 'overloaded_error') {
       if (!_retry) {
         await new Promise(function(r) { setTimeout(r, 3000); });

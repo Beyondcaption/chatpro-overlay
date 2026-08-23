@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('chatpro', {
   getApiKey:       ()      => ipcRenderer.invoke('get-api-key'),
   getDeepLKey:     ()      => ipcRenderer.invoke('get-deepl-key'),
   deeplTranslate:  (args)  => ipcRenderer.invoke('deepl-translate', args),
+  claudeRelay:     (args)  => ipcRenderer.invoke('claude-relay', args),
   copyToClipboard: (text)  => ipcRenderer.invoke('copy-to-clipboard', text),
   closeOverlay:    ()      => ipcRenderer.invoke('close-overlay'),
   closeSettings:   ()      => ipcRenderer.invoke('close-settings'),
