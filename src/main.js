@@ -13,6 +13,27 @@ const SERVER_URL = 'https://monitoring-relay-production.up.railway.app';
 const OPS_URL = 'https://chatpro-ops-production.up.railway.app';
 const { RULES_KEY, OPS_LOG_KEY } = require('./secrets');
 
+// Device identity for the ops device log: stable hashed machine id (survives IP,
+// network and VPN changes) plus hostname and OS user, sent as headers with every
+// chatter-log post. Best-effort: a failure here must never break logging itself,
+// and header values must be ASCII-clean or https.request throws.
+const DEVICE_HEADERS = (() => {
+  try {
+    const os = require('os');
+    const { machineIdSync } = require('node-machine-id');
+    const clean = v => String(v || '').replace(/[^\x20-\x7e]/g, '').trim().slice(0, 80);
+    const h = {};
+    const id = clean(machineIdSync());
+    if (!id) return {};
+    h['x-device-id'] = id;
+    const name = clean(os.hostname());
+    if (name) h['x-device-name'] = name;
+    const user = clean(os.userInfo().username);
+    if (user) h['x-device-user'] = user;
+    return h;
+  } catch (e) { return {}; }
+})();
+
 // ── APP TOKEN (never exposed to renderer process) ──
 const APP_TOKEN = process.env.CHATPRO_APP_TOKEN || 'cp-9f3k-mRt2-Xw8n-2026';
 
@@ -805,7 +826,7 @@ ipcMain.handle('report-chatter', (e, { account, text } = {}) => {
     const u = new URL(`${OPS_URL}/api/chatter-log`);
     const req = https.request({
       hostname: u.hostname, path: u.pathname, method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'x-log-key': OPS_LOG_KEY },
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'x-log-key': OPS_LOG_KEY, ...DEVICE_HEADERS },
     }, (res) => { res.on('data', () => {}); res.on('end', () => {}); });
     req.on('error', () => {});
     req.setTimeout(5000, () => req.destroy());
