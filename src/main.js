@@ -12,6 +12,7 @@ const SERVER_URL = 'https://monitoring-relay-production.up.railway.app';
 // so the QA dashboard can attribute flagged mistakes to a chatter. Read-only ops.
 const OPS_URL = 'https://chatpro-ops-production.up.railway.app';
 const { RULES_KEY, OPS_LOG_KEY } = require('./secrets');
+const updater = require('./updater');
 
 // Device identity for the ops device log: stable hashed machine id (survives IP,
 // network and VPN changes) plus hostname and OS user, sent as headers with every
@@ -30,6 +31,9 @@ const DEVICE_HEADERS = (() => {
     if (name) h['x-device-name'] = name;
     const user = clean(os.userInfo().username);
     if (user) h['x-device-user'] = user;
+    // Build version, so the ops IP-Log tab can show who runs which release.
+    const ver = clean(app.getVersion());
+    if (ver) h['x-app-version'] = ver;
     return h;
   } catch (e) { return {}; }
 })();
@@ -52,42 +56,10 @@ const store = {
   set(key, val) { this._load(); this._data[key] = val; saveStore(this._data); },
 };
 
-// ── GitHub update checker ──
-function checkForUpdates(silent) {
-  if (silent === undefined) silent = true;
-  var https = require('https');
-  var options = {
-    hostname: 'api.github.com',
-    path: '/repos/Beyondcaption/chatpro-overlay/releases/latest',
-    headers: { 'User-Agent': 'ChatPro-Overlay' }
-  };
-  https.get(options, function(res) {
-    var body = '';
-    res.on('data', function(chunk) { body += chunk; });
-    res.on('end', function() {
-      try {
-        var data = JSON.parse(body);
-        var latest = data.tag_name || '';
-        var current = 'v' + app.getVersion();
-        if (latest && latest !== current) {
-          dialog.showMessageBox({
-            type: 'info',
-            title: 'ChatPro Update',
-            message: 'Version ' + latest + ' available!',
-            detail: 'Download now?',
-            buttons: ['Yes', 'Later']
-          }).then(function(r) {
-            if (r.response === 0) {
-              shell.openExternal('https://github.com/Beyondcaption/chatpro-overlay/releases/latest');
-            }
-          });
-        } else if (!silent) {
-          dialog.showMessageBox({ type: 'info', title: 'ChatPro', message: 'Latest version installed.', buttons: ['OK'] });
-        }
-      } catch(e) {}
-    });
-  }).on('error', function(e) {});
-}
+// ── Update checks live in src/updater.js (ops-server feed, not GitHub direct) ──
+// The old api.github.com/releases/latest check is gone: it needs the repo to stay
+// public and can only open a browser link. The feed flow auto-installs on Windows,
+// downloads in-app on Mac, and enforces a server-set minimum version.
 
 // ══════════════════════════════════════════════════════════════════
 // TRANSLATOR STATE
@@ -243,6 +215,8 @@ function setupWindowSecurity(window) {
 let lastAlwaysOnTopTime = 0;
 let clipboardInterval = null;
 function showOverlay(autoText, switchLang) {
+  // Min-version gate: a locked build shows only the update dialog, never the overlay.
+  if (updater.isBlocked()) { updater.showBlockedDialog(); return; }
   const activeDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const { width, height } = activeDisplay.workAreaSize;
   const winW = 460, winH = 720;
@@ -565,7 +539,7 @@ function createTray() {
     { label: 'Schulung', click: () => openSchulung() },
     { label: 'Settings', click: () => openSettings() },
     { type: 'separator' },
-    { label: 'Check for updates', click: () => checkForUpdates(false) },
+    { label: 'Check for updates', click: () => updater.manualCheck() },
     { type: 'separator' },
     { label: 'Quit ChatPro', click: () => app.quit() },
   ]);
@@ -581,7 +555,7 @@ app.whenReady().then(() => {
   createTray();
   registerHotkey();
   watchClipboard();
-  setTimeout(() => checkForUpdates(true), 5000);
+  updater.initUpdater({ opsUrl: OPS_URL, logKey: OPS_LOG_KEY });
   
   // Check if user is already logged in
   const savedUser = store.get('_sys', null);
@@ -847,4 +821,4 @@ ipcMain.handle('open-model-sheet', (e, profile) => openModelSheet(profile));
 ipcMain.handle('close-model-sheet',() => { if (modelSheetWindow && !modelSheetWindow.isDestroyed()) modelSheetWindow.close(); });
 ipcMain.handle('open-settings',  () => openSettings());
 ipcMain.handle('open-url',       (e, url) => shell.openExternal(url));
-ipcMain.handle('check-update',   () => { checkForUpdates(false); return { ok: true }; });
+ipcMain.handle('check-update',   () => { updater.manualCheck(); return { ok: true }; });

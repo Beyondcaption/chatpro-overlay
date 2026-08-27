@@ -1,6 +1,6 @@
 {
   "name": "chatpro-overlay",
-  "version": "2.0.12",
+  "version": "2.0.13",
   "description": "ChatPro — German reply overlay for OnlyFans chatters",
   "main": "src/main.js",
   "scripts": {
@@ -18,6 +18,7 @@
     "axios": "^1.15.0",
     "chokidar": "^5.0.0",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.3.9",
     "form-data": "^4.0.5",
     "node-machine-id": "^1.1.12",
     "sharp": "^0.34.5"
@@ -51,7 +52,11 @@
           ]
         }
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "artifactName": "ChatPro-Setup-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "ChatPro-Portable-${version}.exe"
     },
     "mac": {
       "target": [

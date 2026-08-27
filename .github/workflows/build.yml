@@ -31,3 +31,30 @@ jobs:
           files: |
             dist/*.dmg
             dist/*.zip
+
+  # Windows build in CI (since v2.0.13): produces the NSIS installer, the portable
+  # exe AND dist/latest.yml -- the update signal electron-updater reads through the
+  # chatpro-ops feed proxy. latest.yml MUST be uploaded with the installer, or every
+  # client update check 404s. gen-secrets.js hard-fails on missing keys, so a green
+  # run implies non-empty RULES_KEY/OPS_LOG_KEY in the artifact.
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Generate secrets
+        run: node scripts/gen-secrets.js
+        env:
+          RULES_KEY: ${{ secrets.RULES_KEY }}
+          OPS_LOG_KEY: ${{ secrets.OPS_LOG_KEY }}
+      - run: npx electron-builder --win --x64 --publish never
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/*.exe
+            dist/latest.yml
