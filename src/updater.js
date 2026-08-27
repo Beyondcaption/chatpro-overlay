@@ -79,15 +79,17 @@ function downloadFile(url, dest) {
   });
 }
 
-// The asset for THIS machine when the full updater can't run here.
+// The asset for THIS machine when the full updater can't run here. Matched by
+// suffix against the feed's asset list, so master ("ChatPro-Mac-…") and agency
+// ("ChatPro-J-Mac-…") builds both resolve without per-build constants.
 function assetNameFor(info) {
+  const names = (info.assets || []).map(a => a.name);
   if (process.platform === 'darwin') {
-    return `ChatPro-Mac-${process.arch === 'arm64' ? 'arm64' : 'x64'}.dmg`;
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+    return names.find(n => n.endsWith(`-Mac-${arch}.dmg`)) || `ChatPro-Mac-${arch}.dmg`;
   }
-  // Windows portable build: hand over the installer; version-dependent name, so
-  // prefer the actual asset list over guessing.
-  const fromList = (info.assets || []).map(a => a.name).find(n => /^ChatPro-Setup-.*\.exe$/.test(n));
-  return fromList || `ChatPro-Setup-${info.latest}.exe`;
+  // Windows portable build: hand over the installer.
+  return names.find(n => /-Setup-.*\.exe$/.test(n)) || `ChatPro-Setup-${info.latest}.exe`;
 }
 
 async function downloadAndOpen(info) {
