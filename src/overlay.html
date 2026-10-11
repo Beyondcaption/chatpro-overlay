@@ -552,9 +552,14 @@ async function analyzeMood() {
     var raw = await callClaude(
       LANGUAGES[currentLang].moodPrompt,
       '"' + de + '"',
-      'claude-haiku-4-5'
+      'claude-haiku-5-5'
     );
-    var d = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    var moodJson = raw.replace(/```json|```/g, '').trim();
+    // Haiku 5.5 keeps its reasoning in thinking blocks (dropped in callClaude), but take the
+    // outermost {...} anyway so a stray preamble never silently kills the mood banner.
+    var mStart = moodJson.indexOf('{'), mEnd = moodJson.lastIndexOf('}');
+    if (mStart !== -1 && mEnd > mStart) moodJson = moodJson.slice(mStart, mEnd + 1);
+    var d = JSON.parse(moodJson);
     lastMood = d;
     var b = document.getElementById('moodBanner');
     b.className = 'mood-banner visible ' + d.mood;
@@ -781,19 +786,19 @@ async function callClaude(system, userMsg, model, _retry) {
       })
     : stripLoneSurrogates(system);
 
-  // Adaptive thinking lifts reply quality on the Opus generate call (more natural,
-  // in-character). Haiku (mood) does not support adaptive thinking, so gate it out.
-  // When thinking is on, raise max_tokens so reasoning never crowds out the JSON reply
-  // (max_tokens is a cap, not a charge -- only tokens actually produced are billed).
-  var thinks = !/haiku/i.test(model || '');
+  // Adaptive thinking lifts reply quality on the generate call (more natural, in-character).
+  // Since Haiku 5.5 (mood, 101126) thinking is on by default for Haiku as well, so every call
+  // gets the same treatment: thinking adaptive, and max_tokens raised so the reasoning never
+  // crowds out the JSON reply (thinking tokens count toward max_tokens; a cap is not a charge,
+  // only tokens actually produced are billed).
   var maxTok = yapperMode ? 1800 : 1200;
   var body = {
     model: model || 'claude-sonnet-4-6',
-    max_tokens: thinks ? maxTok + 4000 : maxTok,
+    max_tokens: maxTok + 4000,
     system: safeSystem,
-    messages: [{ role: 'user', content: safeUser }]
+    messages: [{ role: 'user', content: safeUser }],
+    thinking: { type: 'adaptive' }
   };
-  if (thinks) body.thinking = { type: 'adaptive' };
 
   // Direct call first; if the network path to api.anthropic.com is blocked
   // (some ISPs do — surfaces as "Failed to fetch"), fall back to the Railway
