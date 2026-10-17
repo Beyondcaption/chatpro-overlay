@@ -102,17 +102,17 @@ async function downloadAndOpen(info) {
     await shell.openPath(dest);
     dialog.showMessageBox({
       type: 'info', title: 'ChatPro Update',
-      message: `Update ${info.latest} liegt in Downloads (${name}).`,
+      message: `Update ${info.latest} is in your Downloads folder (${name}).`,
       detail: process.platform === 'darwin'
-        ? 'ChatPro beenden, im geöffneten Fenster die App nach Programme ziehen und neu starten.'
-        : 'ChatPro beenden und den Installer ausführen.',
+        ? 'Quit ChatPro, drag the app into Applications in the window that just opened, then start it again.'
+        : 'Quit ChatPro and run the installer.',
       buttons: ['OK'],
     });
   } catch (e) {
     dialog.showMessageBox({
       type: 'error', title: 'ChatPro Update',
-      message: 'Download fehlgeschlagen.',
-      detail: `${e.message} — bitte später erneut versuchen oder beim Admin melden.`,
+      message: 'Download failed.',
+      detail: `${e.message}. Please try again later or tell your admin.`,
       buttons: ['OK'],
     });
   } finally {
@@ -138,9 +138,9 @@ function setupWinUpdater() {
     updaterDialogOpen = true;
     dialog.showMessageBox({
       type: 'info', title: 'ChatPro Update',
-      message: `Version ${info.version} ist fertig heruntergeladen.`,
-      detail: 'Jetzt neu starten und installieren? "Später" installiert beim nächsten Beenden automatisch.',
-      buttons: ['Jetzt neu starten', 'Später'],
+      message: `Version ${info.version} has been downloaded.`,
+      detail: 'Restart and install now? "Later" installs it automatically the next time you quit ChatPro.',
+      buttons: ['Restart now', 'Later'],
     }).then(r => {
       updaterDialogOpen = false;
       if (r.response === 0) autoUpdater.quitAndInstall(true, true);
@@ -155,12 +155,12 @@ function showBlockedDialog() {
   blockedDialogOpen = true;
   const winAuto = isWinInstalled();
   dialog.showMessageBox({
-    type: 'warning', title: 'ChatPro Update erforderlich',
-    message: `Diese Version (${app.getVersion()}) ist gesperrt.`,
+    type: 'warning', title: 'ChatPro update required',
+    message: `This version (${app.getVersion()}) is no longer supported.`,
     detail: winAuto
-      ? 'Das Update wird bereits heruntergeladen und installiert sich gleich automatisch. ChatPro ist bis dahin gesperrt.'
-      : 'Bitte das Update installieren — ChatPro ist bis dahin gesperrt.',
-    buttons: [winAuto ? 'OK' : 'Update jetzt laden'],
+      ? 'The update is already downloading and will install itself automatically in a moment. ChatPro is locked until then.'
+      : 'Please install the update. ChatPro is locked until then.',
+    buttons: [winAuto ? 'OK' : 'Download update now'],
   }).then(() => {
     blockedDialogOpen = false;
     if (!winAuto && lastInfo) downloadAndOpen(lastInfo);
@@ -177,7 +177,7 @@ async function check(silent) {
   } catch (e) {
     // Fail-open: no feed, no verdict. A manual check still deserves an answer.
     if (!silent) dialog.showMessageBox({
-      type: 'info', title: 'ChatPro', message: 'Update-Server nicht erreichbar.',
+      type: 'info', title: 'ChatPro', message: 'Update server not reachable.',
       detail: e.message, buttons: ['OK'],
     });
     return;
@@ -192,8 +192,8 @@ async function check(silent) {
       if (blocked) showBlockedDialog();
       else if (!silent && !updaterDialogOpen) dialog.showMessageBox({
         type: 'info', title: 'ChatPro Update',
-        message: `Version ${info.latest} verfügbar.`,
-        detail: 'Wird im Hintergrund geladen — du bekommst Bescheid, sobald sie bereit ist.',
+        message: `Version ${info.latest} is available.`,
+        detail: 'It is downloading in the background. You will be notified when it is ready.',
         buttons: ['OK'],
       });
     } else if (blocked) {
@@ -201,14 +201,14 @@ async function check(silent) {
     } else {
       const r = await dialog.showMessageBox({
         type: 'info', title: 'ChatPro Update',
-        message: `Version ${info.latest} verfügbar (installiert: ${current}).`,
-        detail: 'Jetzt herunterladen?',
-        buttons: ['Jetzt laden', 'Später'],
+        message: `Version ${info.latest} is available (installed: ${current}).`,
+        detail: 'Download it now?',
+        buttons: ['Download now', 'Later'],
       });
       if (r.response === 0) downloadAndOpen(info);
     }
   } else if (!silent) {
-    dialog.showMessageBox({ type: 'info', title: 'ChatPro', message: 'Neueste Version installiert.', buttons: ['OK'] });
+    dialog.showMessageBox({ type: 'info', title: 'ChatPro', message: 'You are on the latest version.', buttons: ['OK'] });
   }
 }
 
