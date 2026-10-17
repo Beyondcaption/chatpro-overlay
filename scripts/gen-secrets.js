@@ -7,7 +7,10 @@ const path = require('path');
 
 // Knowledge-base rule (060326): values that end up in HTTP headers must be
 // printable-ASCII only, or fetch throws on a stray non-Latin1 char.
-const ascii = (s) => (s || '').replace(/[^\x21-\x7E]/g, '');
+// Surrounding quotes are stripped too: the OPS_LOG_KEY repo secret was pasted with its
+// quotes (found 161026), so every CI build from v2.0.10 to v2.0.14 sent a 41-char key
+// and got 403 on chatter-log and the update feed. A real key never starts with a quote.
+const ascii = (s) => (s || '').replace(/[^\x21-\x7E]/g, '').replace(/^(["'])(.*)\1$/, '$2');
 
 const secretsPath = path.join(__dirname, '..', 'src', 'secrets.js');
 
