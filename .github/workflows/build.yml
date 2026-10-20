@@ -27,6 +27,9 @@ jobs:
       # concurrently, both mount a volume named "ChatPro" and the detach of one hits the
       # other ("hdiutil detach ... No such file or directory", v2.0.14 build 101126). The
       # sequential runs share dist/ and produce the same file names as before.
+      # The arch MUST come from these flags only: an "arch" list on build.mac.target in
+      # package.json overrides --x64/--arm64 and brought the concurrent build right back
+      # (each step built both DMGs, v2.0.16 failed twice 102026).
       - run: npx electron-builder --mac --x64 --publish never
       - run: npx electron-builder --mac --arm64 --publish never
       - name: Upload to GitHub Release
