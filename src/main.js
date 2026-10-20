@@ -399,75 +399,71 @@ function showStealthLogin() {
 <head>
   <meta charset="UTF-8">
   <style>
-    body { 
-      font-family: 'Segoe UI', sans-serif; 
-      background: #111114; 
-      color: #f0f0f5;
+    /* Charcoal Ink, same tokens as overlay.html and the chatpro-ops dashboard */
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: #121212;
+      color: #ededed;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
       margin: 0;
+      font-size: 13px;
+      -webkit-font-smoothing: antialiased;
     }
-    .login-box {
-      background: #1e1e23;
-      padding: 30px;
-      border-radius: 10px;
-      width: 320px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    .login-box { width: 320px; }
+    .head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .brand-mark {
+      width: 28px; height: 28px; border-radius: 6px; background: #f3f3f3; color: #121212;
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
     }
-    h2 { 
-      margin: 0 0 20px 0; 
-      font-size: 18px;
-      text-align: center;
-      color: #ff4d8f;
-    }
+    h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
     input {
       width: 100%;
-      padding: 12px;
-      margin-bottom: 15px;
-      background: #252530;
-      border: 1px solid #3d3d4a;
-      color: white;
-      border-radius: 5px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: #212121;
+      border: 1px solid #2a2a2a;
+      color: #ededed;
+      border-radius: 6px;
+      font: inherit;
       font-size: 13px;
-      box-sizing: border-box;
     }
-    input:focus {
-      outline: none;
-      border-color: #ff4d8f;
-    }
+    input::placeholder { color: #8f8f8f; }
+    input:focus { outline: none; border-color: #d0d0d0; }
     button {
       width: 100%;
-      padding: 12px;
-      background: linear-gradient(135deg, #ff4d8f, #ff8c69);
-      color: white;
+      margin-top: 4px;
+      padding: 11px;
+      background: #f3f3f3;
+      color: #121212;
       border: none;
-      border-radius: 5px;
+      border-radius: 6px;
       cursor: pointer;
+      font: inherit;
       font-weight: 600;
-      font-size: 14px;
+      font-size: 13px;
     }
-    button:hover { opacity: 0.9; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .error { 
-      color: #ff5252; 
-      font-size: 11px; 
-      margin-top: 10px; 
+    button:hover { background: #fff; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .error {
+      color: #ef6b5e;
+      font-size: 12px;
+      margin-top: 10px;
       display: none;
-      text-align: center;
     }
     .info {
-      font-size: 11px;
-      color: #9898b0;
-      text-align: center;
-      margin-top: 15px;
+      font-size: 12px;
+      color: #8f8f8f;
+      margin-top: 12px;
     }
   </style>
 </head>
 <body>
   <div class="login-box">
-    <h2>🔐 ChatPro Activation</h2>
+    <div class="head"><span class="brand-mark">C</span><h2>Activate ChatPro</h2></div>
     <input type="text" id="username" placeholder="Username" />
     <input type="password" id="password" placeholder="Password" />
     <button onclick="login()" id="loginBtn">Activate ChatPro</button>

@@ -4,87 +4,93 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
 <title>ChatPro Settings</title>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* Charcoal Ink, same tokens as overlay.html and the chatpro-ops dashboard */
 :root {
-  --bg:#111114; --s1:#161619; --s2:#1e1e23; --b1:#2e2e38; --b2:#3d3d4a;
-  --t1:#f0f0f5; --t2:#9898b0; --t3:#55556a; --t4:#33333f;
-  --pink:#ff4d8f; --r-sm:6px;
+  --bg:#121212; --panel:#1a1a1a; --panel-2:#212121; --raise:#2a2a2a;
+  --text:#ededed; --text-2:#cfcfcf; --muted:#8f8f8f;
+  --accent:#f3f3f3; --accent-ink:#121212; --accent-soft:#d0d0d0;
+  --high:#ef6b5e; --high-bg:#2c1b19; --money:#4fc38a;
+  --radius:6px; --font:'Inter','Segoe UI',system-ui,sans-serif;
 }
 *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
-html,body { font-family:'Instrument Sans',sans-serif; background:var(--bg); color:var(--t1); font-size:13px; height:100%; overflow-y:auto; }
-.wrap { padding:20px; max-width:480px; }
-h1 { font-size:15px; font-weight:700; color:var(--t2); margin-bottom:20px; }
-.section { margin-bottom:20px; }
-.section-label { font-size:9px; font-weight:600; letter-spacing:0.14em; text-transform:uppercase; color:var(--t3); margin-bottom:10px; }
-.field { margin-bottom:12px; }
-.field-label { font-size:11px; color:var(--t2); margin-bottom:5px; }
-.field-sub { font-size:10px; color:var(--t4); margin-top:4px; line-height:1.5; }
-.input { width:100%; background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t1); font-family:'Instrument Sans',sans-serif; font-size:12px; padding:9px 11px; outline:none; }
-.input:focus { border-color:var(--b2); }
-.input::placeholder { color:var(--t3); }
-.divider { height:1px; background:var(--b1); margin:16px 0; }
-.toggle-row { display:flex; align-items:center; justify-content:space-between; }
-.toggle-label { font-size:12px; color:var(--t2); }
-.toggle { width:36px; height:20px; border-radius:10px; background:var(--b2); cursor:pointer; position:relative; transition:background 0.2s; }
-.toggle.on { background:var(--pink); }
-.toggle::after { content:''; position:absolute; width:14px; height:14px; border-radius:50%; background:white; top:3px; left:3px; transition:transform 0.2s; }
-.toggle.on::after { transform:translateX(16px); }
-.btn-save { width:100%; background:linear-gradient(135deg,var(--pink),#ff8c69); border:none; border-radius:var(--r-sm); color:white; font-family:'Instrument Sans',sans-serif; font-size:13px; font-weight:600; padding:12px; cursor:pointer; margin-top:4px; }
-.btn-save:hover { opacity:0.88; }
-.save-msg { display:none; text-align:center; color:var(--pink); font-size:12px; margin-top:8px; }
-.version { font-size:10px; color:var(--t4); text-align:center; margin-top:16px; }
-.titlebar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; -webkit-app-region: drag; }
-.titlebar h1 { margin-bottom:0; }
-.btn-close-x { background:none; border:none; color:var(--t3); font-size:18px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:5px; transition:all 0.15s; line-height:1; -webkit-app-region: no-drag; }
-.btn-close-x:hover { background:rgba(255,82,82,0.15); color:#ff5252; }
+html { color-scheme:dark; }
+html,body { font-family:var(--font); background:var(--bg); color:var(--text); font-size:13px; line-height:1.5; height:100%;
+  overflow-y:auto; -webkit-font-smoothing:antialiased; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.wrap { padding:16px 20px 24px; max-width:480px; }
+.titlebar { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; -webkit-app-region:drag; }
+.title { display:flex; align-items:center; gap:9px; }
+.brand-mark { width:24px; height:24px; border-radius:5px; background:var(--accent); color:var(--accent-ink); display:flex;
+  align-items:center; justify-content:center; font-weight:700; font-size:12px; }
+h1 { font-size:15px; font-weight:600; letter-spacing:-0.01em; }
+.section { background:var(--panel); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+.section-title { font-size:13px; font-weight:600; margin-bottom:10px; }
+.field-label { font-size:12px; color:var(--muted); margin-bottom:6px; }
+.field-sub { font-size:12px; color:var(--muted); margin-top:6px; line-height:1.5; }
+.field-sub a { color:var(--text); }
+.input { width:100%; background:var(--panel-2); border:1px solid var(--raise); border-radius:var(--radius); color:var(--text);
+  font:inherit; font-size:13px; padding:8px 11px; outline:none; }
+.input:focus { border-color:var(--accent-soft); }
+.input::placeholder { color:var(--muted); }
+.toggle-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.toggle-row + .toggle-row { margin-top:10px; }
+.toggle-label { font-size:13px; color:var(--text-2); }
+.toggle { flex:none; width:36px; height:20px; border-radius:10px; background:var(--raise); cursor:pointer; position:relative; transition:background 0.2s; }
+.toggle.on { background:var(--accent); }
+.toggle::after { content:''; position:absolute; width:14px; height:14px; border-radius:50%; background:var(--muted); top:3px; left:3px;
+  transition:transform 0.2s, background 0.2s; }
+.toggle.on::after { transform:translateX(16px); background:var(--accent-ink); }
+.btn-save { width:100%; background:var(--accent); border:none; border-radius:var(--radius); color:var(--accent-ink); font:inherit; font-size:13px;
+  font-weight:600; padding:11px; cursor:pointer; margin-top:6px; transition:background .12s, transform .12s; }
+.btn-save:hover { background:#fff; }
+.btn-save:active { transform:scale(.985); }
+.save-msg { display:none; text-align:center; color:var(--money); font-size:12px; margin-top:8px; }
+.version { font-size:12px; color:var(--muted); text-align:center; margin-top:14px; font-variant-numeric:tabular-nums; }
+.btn-close-x { background:none; border:none; color:var(--muted); cursor:pointer; width:30px; height:30px; display:flex; align-items:center;
+  justify-content:center; border-radius:var(--radius); transition:background .12s, color .12s; -webkit-app-region:no-drag; }
+.btn-close-x:hover { background:var(--high-bg); color:var(--high); }
+.ic { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="titlebar">
-    <h1>⚙ ChatPro Settings</h1>
-    <button class="btn-close-x" onclick="window.chatpro.closeSettings()" title="Close">✕</button>
+    <div class="title"><span class="brand-mark">C</span><h1>Settings</h1></div>
+    <button class="btn-close-x" onclick="window.chatpro.closeSettings()" title="Close" aria-label="Close"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
   </div>
 
   <div class="section">
-    <div class="section-label">Anthropic API Key</div>
+    <h2 class="section-title">Anthropic API key</h2>
     <div class="field">
-      <div class="field-label">API Key</div>
-      <input class="input" type="password" id="apiKey" placeholder="sk-ant-api03-…" />
-      <div class="field-sub">Get your key at <a href="#" onclick="window.chatpro.openUrl('https://console.anthropic.com')" style="color:var(--pink);">console.anthropic.com</a></div>
+      <input class="input" type="password" id="apiKey" placeholder="sk-ant-api03-…" aria-label="Anthropic API key" />
+      <div class="field-sub">Get your key at <a href="#" onclick="window.chatpro.openUrl('https://console.anthropic.com')">console.anthropic.com</a></div>
     </div>
   </div>
 
-  <div class="divider"></div>
-
   <div class="section">
-    <div class="section-label">DeepL API Key</div>
+    <h2 class="section-title">DeepL API key</h2>
     <div class="field">
-      <div class="field-label">DeepL Key (optional)</div>
-      <input class="input" type="password" id="deeplKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx" />
-      <div class="field-sub">Free key ends with <strong style="color:var(--t2)">:fx</strong> — get one at <a href="#" onclick="window.chatpro.openUrl('https://www.deepl.com/pro-api')" style="color:var(--pink);">deepl.com/pro-api</a></div>
+      <div class="field-label">Optional</div>
+      <input class="input" type="password" id="deeplKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx" aria-label="DeepL API key" />
+      <div class="field-sub">A free key ends with <strong style="color:var(--text)">:fx</strong>. Get one at <a href="#" onclick="window.chatpro.openUrl('https://www.deepl.com/pro-api')">deepl.com/pro-api</a></div>
     </div>
   </div>
 
-  <div class="divider"></div>
-
   <div class="section">
-    <div class="section-label">Auto-detect Clipboard</div>
+    <h2 class="section-title">Clipboard</h2>
     <div class="toggle-row">
       <span class="toggle-label">Automatically detect messages</span>
       <div class="toggle" id="autoDetectToggle" onclick="toggleAutoDetect()"></div>
     </div>
-    <div class="toggle-row" style="margin-top:10px;">
+    <div class="toggle-row">
       <span class="toggle-label">Automatically switch language (DE/ES/IT)</span>
       <div class="toggle" id="autoLangSwitchToggle" onclick="toggleAutoLangSwitch()"></div>
     </div>
   </div>
 
-  <div class="divider"></div>
-
   <div class="section">
-    <div class="section-label">Hotkey</div>
+    <h2 class="section-title">Hotkey</h2>
     <div class="field">
       <div class="field-label">Open overlay shortcut</div>
       <input class="input" id="hotkey" placeholder="CommandOrControl+Shift+T" />
@@ -92,7 +98,7 @@ h1 { font-size:15px; font-weight:700; color:var(--t2); margin-bottom:20px; }
   </div>
 
   <button class="btn-save" onclick="saveSettings()">Save settings</button>
-  <div class="save-msg" id="saveMsg">✓ Saved!</div>
+  <div class="save-msg" id="saveMsg">Saved</div>
   <div class="version" id="versionLabel"></div>
 </div>
 

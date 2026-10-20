@@ -4,94 +4,109 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
 <title>ChatPro Training</title>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+/* Charcoal Ink, same tokens as src/overlay.html and the chatpro-ops dashboard */
 :root {
-  --bg:#111114; --s1:#161619; --s2:#1e1e23; --s3:#252530; --b1:#2e2e38; --b2:#3d3d4a;
-  --t1:#f0f0f5; --t2:#9898b0; --t3:#55556a; --t4:#33333f;
-  --pink:#ff4d8f; --pink-dim:rgba(255,77,143,0.1);
-  --gold:#ffb547; --green:#3dd68c; --blue:#5b8ef0; --purple:#b47aff;
-  --r:10px; --r-sm:6px;
+  --bg:#121212; --sidebar:#161616; --panel:#1a1a1a; --panel-2:#212121; --raise:#2a2a2a;
+  --text:#ededed; --text-2:#cfcfcf; --muted:#8f8f8f;
+  --accent:#f3f3f3; --accent-ink:#121212;
+  --high:#ef6b5e; --medium:#e0b23f; --low:#6aa6e3; --money:#4fc38a;
+  --high-bg:#2c1b19; --medium-bg:#2b2416; --low-bg:#182434; --money-bg:#142a1e;
+  --radius:6px; --font:'Inter','Segoe UI',system-ui,sans-serif;
 }
 *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
-html,body { height:100%; font-family:'Instrument Sans',sans-serif; background:var(--bg); color:var(--t1); font-size:13px; overflow:hidden; }
+html { color-scheme:dark; }
+html,body { height:100%; font-family:var(--font); background:var(--bg); color:var(--text); font-size:13px; line-height:1.5;
+  overflow:hidden; -webkit-font-smoothing:antialiased; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.ic { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; flex:none; }
 
-.titlebar { -webkit-app-region:drag; height:36px; background:var(--s1); border-bottom:1px solid var(--b1); display:flex; align-items:center; justify-content:space-between; padding:0 12px; flex-shrink:0; }
-.tb-left { display:flex; align-items:center; gap:8px; pointer-events:none; }
-.tb-logo { font-size:12px; font-weight:700; color:var(--t2); }
-.tb-tag { font-size:10px; color:var(--t4); background:var(--s2); border:1px solid var(--b1); border-radius:4px; padding:2px 7px; font-family:'JetBrains Mono',monospace; }
+.titlebar { -webkit-app-region:drag; height:44px; background:var(--panel); display:flex; align-items:center; justify-content:space-between;
+  padding:0 8px 0 12px; flex-shrink:0; }
+.tb-left { display:flex; align-items:center; gap:9px; pointer-events:none; }
+.brand-mark { width:24px; height:24px; border-radius:5px; background:var(--accent); color:var(--accent-ink); display:flex;
+  align-items:center; justify-content:center; font-weight:700; font-size:12px; }
+.tb-logo { font-size:13px; font-weight:600; }
+.tb-tag { font-size:12px; color:var(--muted); }
 .tb-right { -webkit-app-region:no-drag; }
-.tb-btn { background:none; border:none; color:var(--t3); cursor:pointer; font-size:14px; padding:2px 5px; border-radius:4px; }
-.tb-btn:hover { color:#ff5252; background:var(--s2); }
+.tb-btn { background:none; border:none; color:var(--muted); cursor:pointer; width:30px; height:30px; border-radius:var(--radius);
+  display:inline-flex; align-items:center; justify-content:center; transition:background .12s, color .12s; }
+.tb-btn:hover { color:var(--high); background:var(--high-bg); }
 
-.layout { display:flex; height:calc(100% - 36px); overflow:hidden; }
+.layout { display:flex; height:calc(100% - 44px); overflow:hidden; }
 
-.sidebar { width:220px; flex-shrink:0; background:var(--s1); border-right:1px solid var(--b1); display:flex; flex-direction:column; overflow:hidden; }
-.sidebar-header { padding:14px 14px 10px; border-bottom:1px solid var(--b1); flex-shrink:0; }
-.sidebar-title { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--t3); }
-.module-list { flex:1; overflow-y:auto; padding:8px 6px; }
-.module-btn { width:100%; text-align:left; background:none; border:none; border-radius:var(--r-sm); color:var(--t2); font-family:'Instrument Sans',sans-serif; font-size:11px; padding:8px 10px; cursor:pointer; display:flex; align-items:center; gap:8px; line-height:1.35; transition:all 0.15s; margin-bottom:2px; }
-.module-btn:hover { background:var(--s2); color:var(--t1); }
-.module-btn.active { background:var(--pink-dim); color:var(--pink); border:1px solid rgba(255,77,143,0.2); }
-.module-btn .mod-num { font-size:9px; font-family:'JetBrains Mono',monospace; color:var(--t4); width:16px; flex-shrink:0; }
-.module-btn.active .mod-num { color:var(--pink); opacity:0.6; }
+.sidebar { width:220px; flex-shrink:0; background:var(--sidebar); display:flex; flex-direction:column; overflow:hidden; }
+.sidebar-header { padding:14px 18px 6px; flex-shrink:0; }
+.sidebar-title { font-size:13px; font-weight:600; }
+.module-list { flex:1; overflow-y:auto; padding:6px 8px 10px; }
+.module-btn { width:100%; text-align:left; background:none; border:none; border-radius:var(--radius); color:var(--text-2); font:inherit;
+  font-size:13px; padding:7px 10px; cursor:pointer; line-height:1.35; transition:background .12s, color .12s; margin-bottom:2px; }
+.module-btn:hover { background:var(--panel-2); color:var(--text); }
+.module-btn.active { background:var(--raise); color:var(--text); font-weight:600; }
 
-.content { flex:1; overflow-y:auto; padding:24px 28px; }
-.content::-webkit-scrollbar { width:3px; }
-.content::-webkit-scrollbar-thumb { background:var(--b2); border-radius:2px; }
+.content { flex:1; overflow-y:auto; padding:26px 32px 32px; }
+.content > * { max-width:68ch; }
+.content::-webkit-scrollbar { width:6px; }
+.content::-webkit-scrollbar-thumb { background:var(--raise); border-radius:3px; }
 
-.mod-header { margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--b1); }
-.mod-eyebrow { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--pink); margin-bottom:6px; }
-.mod-title { font-size:20px; font-weight:700; color:var(--t1); line-height:1.3; }
-.mod-subtitle { font-size:12px; color:var(--t2); margin-top:5px; line-height:1.5; }
+.mod-header { margin-bottom:22px; }
+.mod-eyebrow { display:none; } /* "Module N": the sidebar already shows the order */
+.mod-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; }
+.mod-subtitle { font-size:14px; color:var(--text-2); margin-top:8px; line-height:1.55; }
 
-h2 { font-size:14px; font-weight:700; color:var(--t1); margin:20px 0 10px; }
-h3 { font-size:12px; font-weight:600; color:var(--gold); margin:16px 0 8px; }
-p { font-size:12px; color:var(--t2); line-height:1.75; margin-bottom:10px; }
-ul, ol { padding-left:18px; margin-bottom:12px; }
-li { font-size:12px; color:var(--t2); line-height:1.7; margin-bottom:3px; }
-li strong { color:var(--t1); }
-strong { color:var(--t1); font-weight:600; }
+h2 { font-size:16px; font-weight:600; letter-spacing:-0.01em; margin:26px 0 8px; }
+h3 { font-size:14px; font-weight:600; color:var(--text); margin:18px 0 6px; }
+p { font-size:14px; color:var(--text); line-height:1.65; margin-bottom:10px; }
+ul, ol { padding-left:20px; margin-bottom:12px; }
+li { font-size:14px; color:var(--text); line-height:1.6; margin-bottom:4px; }
+strong { color:var(--text); font-weight:600; }
 
-.callout { background:var(--s2); border:1px solid var(--b1); border-left:3px solid var(--pink); border-radius:0 var(--r-sm) var(--r-sm) 0; padding:12px 14px; margin:14px 0; }
-.callout.gold { border-left-color:var(--gold); }
-.callout.green { border-left-color:var(--green); }
-.callout.blue { border-left-color:var(--blue); }
-.callout-label { font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--pink); margin-bottom:5px; }
-.callout.gold .callout-label { color:var(--gold); }
-.callout.green .callout-label { color:var(--green); }
-.callout.blue .callout-label { color:var(--blue); }
-.callout p { margin:0; font-size:12px; }
+/* Callouts and examples: a filled panel with a 3 px stripe, like the dashboard flags */
+.callout { position:relative; background:var(--panel); border-radius:8px; padding:12px 16px 12px 19px; margin:14px 0; }
+.callout::before, .example-box::before { content:""; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px;
+  background:var(--accent); }
+.callout.gold::before { background:var(--medium); }
+.callout.green::before { background:var(--money); }
+.callout.blue::before { background:var(--low); }
+.callout-label { font-size:13px; font-weight:600; margin-bottom:4px; }
+.callout.gold .callout-label { color:var(--medium); }
+.callout.green .callout-label { color:var(--money); }
+.callout.blue .callout-label { color:var(--low); }
+.callout p { margin:0; }
 
-.example-box { background:var(--s3); border:1px solid var(--b1); border-radius:var(--r-sm); padding:12px 14px; margin:10px 0; }
-.example-label { font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--t3); margin-bottom:6px; }
-.example-text { font-size:12px; color:var(--t1); line-height:1.6; font-style:italic; }
-.example-bad { border-color:rgba(255,82,82,0.3); }
-.example-bad .example-label { color:#ff5252; }
-.example-good { border-color:rgba(61,214,140,0.3); }
-.example-good .example-label { color:var(--green); }
+.example-box { position:relative; background:var(--panel); border-radius:8px; padding:11px 16px 11px 19px; margin:10px 0; }
+.example-box::before { background:var(--raise); }
+.example-label { font-size:12px; font-weight:600; color:var(--muted); margin-bottom:3px; }
+.example-text { font-size:14px; color:var(--text); line-height:1.6; }
+.example-bad { background:var(--high-bg); }
+.example-bad::before { background:var(--high); }
+.example-bad .example-label { color:var(--high); }
+.example-good { background:var(--money-bg); }
+.example-good::before { background:var(--money); }
+.example-good .example-label { color:var(--money); }
 
-.tag-row { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
-.tag { background:var(--s2); border:1px solid var(--b1); border-radius:20px; padding:3px 10px; font-size:11px; color:var(--t2); }
-.tag.pink { background:var(--pink-dim); border-color:rgba(255,77,143,0.25); color:var(--pink); }
-.tag.gold { background:rgba(255,181,71,0.08); border-color:rgba(255,181,71,0.25); color:var(--gold); }
-.tag.green { background:rgba(61,214,140,0.08); border-color:rgba(61,214,140,0.25); color:var(--green); }
+.tag-row { display:flex; flex-wrap:wrap; gap:4px; margin:10px 0; }
+.tag { background:var(--panel-2); border-radius:20px; padding:4px 11px; font-size:12px; color:var(--text-2); }
 
-.nav-footer { display:flex; justify-content:space-between; margin-top:30px; padding-top:16px; border-top:1px solid var(--b1); }
-.nav-btn { background:var(--s2); border:1px solid var(--b1); border-radius:var(--r-sm); color:var(--t2); font-family:'Instrument Sans',sans-serif; font-size:11px; padding:7px 14px; cursor:pointer; }
-.nav-btn:hover { color:var(--t1); border-color:var(--b2); }
-.nav-btn.primary { background:var(--pink-dim); border-color:rgba(255,77,143,0.3); color:var(--pink); font-weight:600; }
+.nav-footer { display:flex; justify-content:space-between; gap:8px; margin-top:32px; }
+.nav-btn { background:var(--panel-2); border:none; border-radius:var(--radius); color:var(--text-2); font:inherit; font-size:13px;
+  padding:8px 14px; cursor:pointer; transition:background .12s, color .12s, transform .12s; }
+.nav-btn:hover { color:var(--text); background:var(--raise); }
+.nav-btn:active { transform:scale(.97); }
+.nav-btn.primary { background:var(--accent); color:var(--accent-ink); font-weight:600; }
+.nav-btn.primary:hover { background:#fff; }
 </style>
 </head>
 <body>
 
 <div class="titlebar">
   <div class="tb-left">
-    <span class="tb-logo">📚 ChatPro Training</span>
-    <span class="tb-tag">Chatter Guide</span>
+    <span class="brand-mark">C</span>
+    <span class="tb-logo">Training</span>
+    <span class="tb-tag">Chatter guide</span>
   </div>
   <div class="tb-right">
-    <button class="tb-btn" onclick="window.chatpro.closeSchulung()">✕</button>
+    <button class="tb-btn" onclick="window.chatpro.closeSchulung()" title="Close" aria-label="Close"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
   </div>
 </div>
 
@@ -647,8 +662,7 @@ function render() {
   const list = document.getElementById('moduleList');
   list.innerHTML = MODULES.map((m, i) => `
     <button class="module-btn ${i === activeModule ? 'active' : ''}" onclick="showModule(${i})">
-      <span class="mod-num">${String(i + 1).padStart(2, '0')}</span>
-      <span>${m.icon} ${m.title}</span>
+      ${m.title}
     </button>
   `).join('');
 
