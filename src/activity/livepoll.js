@@ -4,12 +4,14 @@ const P_POLL = '/api/activity/live/poll';
 const P_OFFER = '/api/activity/live/offer';
 const P_SIGNAL = '/api/activity/live/overlay-signal';
 const HARD_LIMIT_MS = 30 * 60000; // Hartlimit je Sitzung
+const COOLDOWN_MS = 60000;        // lokal beendete Sitzungs-IDs nicht sofort neu beginnen
 const MAX_SIGNAL_FAIL = 15;       // aufeinanderfolgende Fehler, dann Sitzung beenden
 
 function createLivePoller({ http, capture, onBanner, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, pollMs = 2000 } = {}) {
   let running = false;
   let timer = null;
   let gen = 0;        // Generationszähler gegen Rennen zwischen stop() und laufenden Anfragen
+  const cooldown = new Map(); // id -> Zeitpunkt, bis zu dem die ID übersprungen wird
   let session = null; // { id, cursor, startedAt, offered, queued, fails, answered }
 
   const safe = (fn) => { try { return fn(); } catch (e) { return undefined; } };
@@ -17,6 +19,7 @@ function createLivePoller({ http, capture, onBanner, now = Date.now, setTimer = 
 
   function endSession() {
     if (!session) return;
+    cooldown.set(session.id, now() + COOLDOWN_MS);
     session = null;
     safe(() => capture.stop());
     banner({ active: false });
@@ -33,10 +36,14 @@ function createLivePoller({ http, capture, onBanner, now = Date.now, setTimer = 
     if (session) endSession();
     session = mine;
     // Hinweis zuerst, dann erst die Bildschirmaufnahme.
-    banner({ active: true, viewer: s.viewer });
+    // Fail-closed: ohne sichtbaren Hinweis keine Aufnahme (false oder Fehler = nicht gezeigt).
+    let shown = false;
+    try { shown = onBanner ? onBanner({ active: true, viewer: s.viewer }) !== false : false; } catch (e) { shown = false; }
+    if (!shown) { endSession(); return; }
     let offer = null;
     try { offer = await capture.begin({ id: s.id, iceServers: s.iceServers || [] }); } catch (e) { offer = null; }
-    if (session !== mine) return; // inzwischen beendet, capture.stop lief schon
+    // Inzwischen beendet: Aufnahme sicher schließen, auch wenn capture.begin erst jetzt zurückkam.
+    if (session !== mine) { if (!session) safe(() => capture.stop()); return; }
     if (!offer || typeof offer.sdp !== 'string' || !offer.sdp) { endSession(); return; }
     const r = await http('POST', P_OFFER, { body: { sessionId: mine.id, sdp: offer.sdp, candidates: offer.candidates || [] } });
     if (session !== mine) return;
@@ -44,7 +51,7 @@ function createLivePoller({ http, capture, onBanner, now = Date.now, setTimer = 
     mine.offered = true;
     if (mine.queued.length) {
       const c = mine.queued; mine.queued = [];
-      await http('POST', P_OFFER, { body: { sessionId: mine.id, sdp: null, candidates: c } });
+      try { await http('POST', P_OFFER, { body: { sessionId: mine.id, sdp: null, candidates: c } }); } catch (e) {}
     }
   }
 
@@ -62,7 +69,7 @@ function createLivePoller({ http, capture, onBanner, now = Date.now, setTimer = 
     const j = r.json;
     if (j.ended) { endSession(); return; }
     const cands = Array.isArray(j.candidates) ? j.candidates : [];
-    if (typeof j.nextCursor === 'number') cur.cursor = j.nextCursor;
+    if (Number.isFinite(j.nextCursor)) cur.cursor = j.nextCursor;
     const answer = typeof j.answer === 'string' && j.answer && !cur.answered ? j.answer : null;
     if (answer || cands.length) {
       if (answer) cur.answered = true;
@@ -78,7 +85,9 @@ function createLivePoller({ http, capture, onBanner, now = Date.now, setTimer = 
         await signalTick();
       } else {
         const r = await http('GET', P_POLL);
-        if (g === gen && running && !session && r && r.status === 200 && r.json && r.json.session && r.json.session.id) {
+        for (const [k, until] of cooldown) if (until <= now()) cooldown.delete(k);
+        const sid = r && r.status === 200 && r.json && r.json.session && r.json.session.id;
+        if (g === gen && running && !session && sid && !cooldown.has(sid)) {
           await beginSession(r.json.session);
         }
       }
@@ -106,7 +115,7 @@ function createLivePoller({ http, capture, onBanner, now = Date.now, setTimer = 
       const cur = session;
       if (!cur || c == null) return;
       if (!cur.offered) { cur.queued.push(c); return; }
-      safe(() => http('POST', P_OFFER, { body: { sessionId: cur.id, sdp: null, candidates: [c] } }));
+      safe(() => Promise.resolve(http('POST', P_OFFER, { body: { sessionId: cur.id, sdp: null, candidates: [c] } })).catch(() => {}));
     },
   };
 }

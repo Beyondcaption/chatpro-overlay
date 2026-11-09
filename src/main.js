@@ -661,7 +661,10 @@ function liveHttp() {
   };
 }
 
+let liveGen = 0; // Zähler: jede Schließung entwertet laufende begin()-Aufrufe
+
 function closeLiveWindow() {
+  liveGen++;
   try {
     if (liveWaiter) { clearTimeout(liveWaiter.timer); liveWaiter.resolve(null); liveWaiter = null; }
     if (liveWindow && !liveWindow.isDestroyed()) {
@@ -676,8 +679,25 @@ const liveCapture = {
   // Öffnet das versteckte Fenster, startet die Aufnahme aller Monitore, liefert {sdp, candidates}.
   async begin({ id, iceServers }) {
     closeLiveWindow();
+    const g = liveGen;
+    // Vorbereitung (getSources + loadFile) mit 20 s Timeout; bei Timeout wird alles geschlossen.
+    let to = null;
+    const timeout = new Promise((resolve) => { to = setTimeout(() => { closeLiveWindow(); resolve(null); }, 20000); });
+    try {
+      return await Promise.race([timeout, liveBegin(g, iceServers)]);
+    } finally { clearTimeout(to); }
+  },
+  remote(payload) {
+    if (liveWindow && !liveWindow.isDestroyed()) liveWindow.webContents.send('live:remote', payload);
+  },
+  stop() { closeLiveWindow(); },
+};
+
+async function liveBegin(g, iceServers) {
+  {
     const { desktopCapturer } = require('electron');
     const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
+    if (g !== liveGen) return null; // inzwischen gestoppt: keine Aufnahme starten
     const sourceIds = sources.map(s => s.id);
     if (!sourceIds.length) return null;
     const win = new BrowserWindow({
@@ -693,19 +713,15 @@ const liveCapture = {
     liveWindow = win;
     win.on('closed', () => { if (liveWindow === win) liveWindow = null; });
     await win.loadFile(path.join(__dirname, 'live.html'));
-    if (liveWindow !== win) return null;
+    if (g !== liveGen || liveWindow !== win) { try { if (!win.isDestroyed()) win.destroy(); } catch (e) {} return null; }
     const offer = new Promise((resolve) => {
       const timer = setTimeout(() => { liveWaiter = null; resolve(null); }, 20000);
       liveWaiter = { resolve, timer };
     });
     win.webContents.send('live:start', { sourceIds, iceServers: iceServers || [] });
     return offer;
-  },
-  remote(payload) {
-    if (liveWindow && !liveWindow.isDestroyed()) liveWindow.webContents.send('live:remote', payload);
-  },
-  stop() { closeLiveWindow(); },
-};
+  }
+}
 
 ipcMain.on('live:offer', (event, payload) => {
   try {
@@ -754,7 +770,12 @@ function showLiveBanner(viewer) {
       win.setAlwaysOnTop(true, 'screen-saver');
     };
     if (win.webContents.isLoading()) win.webContents.once('did-finish-load', push); else push();
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    // Fail-closed: Fenster nicht erstellbar -> false, der Poller startet dann keine Aufnahme.
+    hideLiveBanner();
+    return false;
+  }
 }
 
 function hideLiveBanner() {
@@ -770,7 +791,7 @@ function startLivePoller() {
     livePoller = activityLib.createLivePoller({
       http: liveHttp(),
       capture: liveCapture,
-      onBanner: (b) => { if (b && b.active) showLiveBanner(b.viewer); else hideLiveBanner(); },
+      onBanner: (b) => { if (b && b.active) return showLiveBanner(b.viewer); hideLiveBanner(); return true; },
     });
     livePoller.start();
   } catch (e) { livePoller = null; }

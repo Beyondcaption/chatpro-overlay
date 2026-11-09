@@ -131,3 +131,58 @@ test('poller stops cleanly on stop() mid-session and is idempotent', async () =>
   await t.clock.advance(10000);
   assert.strictEqual(t.calls.length, n);
 });
+
+test('stop() during an in-flight begin closes the capture and sends no offer', async () => {
+  const t = setup({ pollReplies: [S1] });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const capture = { begin: async () => { await gate; return { sdp: 'OFFER', candidates: [] }; }, remote() {}, stop: () => { t.cap.stops++; } };
+  const poller = createLivePoller({
+    http: async (m, p, o) => { t.calls.push({ method: m, path: p, body: o && o.body }); return { status: 200, json: p.startsWith('/api/activity/live/poll') ? S1 : { ok: true } }; },
+    capture, onBanner: () => true, now: t.clock.now, setTimer: t.clock.setTimer, clearTimer: t.clock.clearTimer,
+  });
+  poller.start();
+  await t.clock.advance(50);
+  poller.stop();
+  release();
+  await t.clock.advance(50);
+  assert.ok(t.cap.stops >= 2);
+  assert.strictEqual(t.calls.filter((c) => c.path === '/api/activity/live/offer').length, 0);
+});
+
+test('a session that failed locally is not re-begun on the next tick', async () => {
+  const t = setup({ pollReplies: [S1, S1, S1], offer: null });
+  t.poller.start();
+  await t.clock.advance(7000);
+  assert.strictEqual(t.cap.begun.length, 1);
+  t.poller.stop();
+});
+
+test('banner failure is fail-closed: no capture, no offer', async () => {
+  const clock = fakeClock();
+  const calls = []; let begun = 0; let stops = 0;
+  const poller = createLivePoller({
+    http: async (m, p) => { calls.push({ method: m, path: p }); return { status: 200, json: p.startsWith('/api/activity/live/poll') ? S1 : { ok: true } }; },
+    capture: { begin: async () => { begun++; return { sdp: 'X', candidates: [] }; }, remote() {}, stop: () => { stops++; } },
+    onBanner: (b) => { if (b.active) throw new Error('no window'); },
+    now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer,
+  });
+  poller.start();
+  await clock.advance(50);
+  assert.strictEqual(begun, 0);
+  assert.strictEqual(calls.filter((c) => c.method === 'POST').length, 0);
+  assert.strictEqual(stops, 1);
+  poller.stop();
+});
+
+test('a non-finite nextCursor keeps the previous cursor', async () => {
+  const t = setup({
+    pollReplies: [S1],
+    signalReplies: [{ candidates: [], nextCursor: 3 }, { candidates: [], nextCursor: 'x' }, { candidates: [], nextCursor: 3 }],
+  });
+  t.poller.start();
+  await t.clock.advance(7000);
+  const sigs = t.calls.filter((c) => c.path.startsWith('/api/activity/live/overlay-signal'));
+  assert.ok(sigs[1].path.includes('cursor=3') && sigs[2].path.includes('cursor=3'));
+  t.poller.stop();
+});
