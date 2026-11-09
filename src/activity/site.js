@@ -45,13 +45,13 @@ const KEYWORDS = [
   ['Spotify', 'Spotify'],
 ];
 
-const BROWSERS = ['chrome', 'google chrome', 'microsoft edge', 'msedge', 'firefox', 'safari', 'brave', 'opera', 'arc'];
+const BROWSERS = ['chrome', 'google chrome', 'microsoft edge', 'msedge', 'firefox', 'safari', 'brave', 'opera', 'arc', 'chromium', 'vivaldi'];
 
 function hostAndPath(url) {
   if (!url || typeof url !== 'string') return null;
   try {
     const u = new URL(url);
-    return { host: u.hostname.toLowerCase().replace(/^www\./, ''), path: u.pathname || '' };
+    return { host: u.hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, ''), path: u.pathname || '' };
   } catch (e) {
     return null;
   }
@@ -90,7 +90,8 @@ function sanitizeApp(appName) {
 function classifySite({ appName, title, url } = {}) {
   const hit = fromUrl(url) || fromTitle(title);
   if (hit) return hit;
-  const isBrowser = typeof appName === 'string' && BROWSERS.includes(appName.trim().toLowerCase());
+  // appName muss der Prozess-/Owner-Name sein, nie ein Fenstertitel.
+  const isBrowser = typeof appName === 'string' && BROWSERS.includes(appName.trim().toLowerCase().replace(/\.exe$/, ''));
   if (isBrowser) return 'Browser: other';
   return sanitizeApp(appName);
 }

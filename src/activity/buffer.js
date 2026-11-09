@@ -1,9 +1,12 @@
 // Offline-Puffer fuer Minutenzeilen. Persistenz ueber injizierte load/save.
-function createBuffer({ load, save, max = 10080 } = {}) {
+const valid = (r) => !!r && typeof r === 'object' && typeof r.minute === 'string';
+
+function createBuffer({ load, save, max: maxIn = 10080 } = {}) {
+  const max = Math.max(1, Math.floor(Number.isFinite(Number(maxIn)) ? Number(maxIn) : 10080));
   let rows = [];
   try {
     const stored = load && load();
-    if (Array.isArray(stored)) rows = stored.slice(-max);
+    if (Array.isArray(stored)) rows = stored.filter(valid).slice(-max);
   } catch (e) {
     rows = [];
   }
@@ -14,7 +17,7 @@ function createBuffer({ load, save, max = 10080 } = {}) {
 
   return {
     push(newRows) {
-      const add = Array.isArray(newRows) ? newRows : [newRows];
+      const add = (Array.isArray(newRows) ? newRows : [newRows]).filter(valid);
       rows = rows.concat(add);
       if (rows.length > max) rows = rows.slice(rows.length - max);
       persist();

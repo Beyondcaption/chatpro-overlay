@@ -39,6 +39,12 @@ test('classifySite: leere Eingabe, null url, unbekannte App', () => {
   assert.equal(classifySite({ appName: 'Notepad', title: 'geheim.txt' }), 'Notepad');
   assert.equal(classifySite({ appName: 'Chrome', title: 'x', url: 'kaputt' }), 'Browser: other');
 });
+test('classifySite: Windows-Prozessnamen und Host mit Endpunkt', () => {
+  assert.equal(classifySite({ appName: 'chrome.exe', title: 'x', url: 'https://bank.example' }), 'Browser: other');
+  assert.equal(classifySite({ appName: 'msedge.exe', title: 'x' }), 'Browser: other');
+  assert.equal(classifySite({ appName: 'Vivaldi', title: 'x' }), 'Browser: other');
+  assert.equal(classifySite({ appName: 'chrome', title: 'x', url: 'https://youtube.com./' }), 'YouTube');
+});
 test('classifySite: Ausgabe passt zum Backend-Muster, max 60', () => {
   const out = classifySite({ appName: 'A'.repeat(100) + '!?*', title: 'x' });
   assert.ok(out.length <= 40);
