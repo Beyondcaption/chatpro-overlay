@@ -11,12 +11,15 @@ const WINDOW_MS = 5000;          // aktives Fenster abfragen
 const SEND_MS = 3 * MIN;         // Minuten senden
 const MAX_SEND = 600;
 const MOVE_MS = 500;             // mousemove hoechstens 1 Zaehlung je 500 ms
-const STALE_MS = 15 * MIN;       // so lange ohne Serverantwort weiter tracken (Offline-Puffer)
+const STALE_MS = 5 * MIN;        // so lange ohne Serverantwort weiter tracken (lieber Luecke als Tracking ausserhalb der Schicht)
 const MAX_NATIVE_FAIL = 3;
 
 const KEY_TOKEN = '_act';
 const KEY_BUF = '_actBuf';
 const KEY_DECLINED = '_actDeclined';
+const KEY_OWNER = '_actOwner'; // Login, dem der Token gehoert
+
+const normUser = (u) => String(u == null ? '' : u).trim().toLowerCase();
 
 const LABELS = {
   ok: 'Activity tracking: on',
@@ -163,10 +166,13 @@ function createController({
 
   function clearConsent(why = 'no_consent') {
     epoch++;
-    try { store.set(KEY_TOKEN, null); } catch (e) {}
+    try { store.set(KEY_TOKEN, null); store.set(KEY_OWNER, null); } catch (e) {}
     buf.ack(buf.size());
     tracking = false;
     disarm('win');
+    // Kein Low-Level-Hook bleibt ohne Einwilligung installiert; ensureHooks startet neu bei track:true.
+    try { native.stopHooks && native.stopHooks(); } catch (e) {}
+    hooksStarted = false;
     resetMinute();
     activeThisMinute = false;
     lastStateOk = 0;
@@ -335,6 +341,7 @@ function createController({
       if (r && r.status === 200 && r.json && typeof r.json.token === 'string' && r.json.token) {
         epoch++;
         store.set(KEY_TOKEN, r.json.token);
+        store.set(KEY_OWNER, normUser(username));
         try { store.set(KEY_DECLINED, null); } catch (e) {}
         lastStateOk = 0;
         featureOff = false;
@@ -360,10 +367,23 @@ function createController({
   // Native Module fehlen: Tracker aus (Status "error"), Widerruf funktioniert weiter.
   function disable() { enterError(); }
 
-  return { start, stop, state, refresh, onKey, onMouse, consent, revoke, disable };
+  // Token an den eingeloggten Nutzer binden: anderer (oder unbekannter) Besitzer -> lokal loeschen,
+  // Widerruf best effort. Nicht als Ablehnung merken: der neue Nutzer wird selbst gefragt.
+  async function bindUser(username) {
+    const u = normUser(username);
+    const tok = token();
+    if (!u || !tok) return { ok: true, cleared: false };
+    if (normUser(store.get(KEY_OWNER, '')) === u) return { ok: true, cleared: false };
+    clearConsent('no_consent');
+    try { await http('POST', '/api/activity/revoke', { headers: { 'x-activity-token': tok } }); } catch (e) {}
+    if (running) refresh();
+    return { ok: true, cleared: true };
+  }
+
+  return { start, stop, state, refresh, onKey, onMouse, consent, revoke, disable, bindUser };
 }
 
 module.exports = {
   createController, shouldShowConsent, trayLabel, consentErrorMessage, msUntilNextMinute,
-  KEY_TOKEN, KEY_BUF, KEY_DECLINED,
+  KEY_TOKEN, KEY_BUF, KEY_DECLINED, KEY_OWNER,
 };

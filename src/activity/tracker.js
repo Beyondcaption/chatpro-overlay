@@ -60,11 +60,11 @@ function makeHttp(baseUrl, deviceHeaders) {
   });
 }
 
-// startTracker({ opsUrl, deviceHeaders, store, onState, consentVersion, permHeader, canStartHooks })
-//   -> { stop(), state(), refresh(), consent(args), revoke() }
+// startTracker({ opsUrl, deviceHeaders, store, onState, consentVersion, permHeader, canStartHooks, username })
+//   -> { stop(), state(), refresh(), consent(args), revoke(), bindUser(username) }
 function startTracker({
   opsUrl, deviceHeaders, store, onState, consentVersion,
-  permHeader = () => null, canStartHooks = () => true, _native,
+  permHeader = () => null, canStartHooks = () => true, username = '', _native,
 }) {
   const nat = _native || loadNative();
   const missing = !nat.uIOhook || !nat.activeWin;
@@ -111,6 +111,8 @@ function startTracker({
     onState,
   });
   if (missing) ctl.disable();
+  // Fremden Token (anderer Login) vor dem ersten Statusabruf verwerfen.
+  ctl.bindUser(username).catch(() => {}); // loescht synchron vor dem ersten await
   ctl.start();
 
   return {
@@ -119,6 +121,7 @@ function startTracker({
     refresh: () => ctl.refresh(),
     consent: (args) => ctl.consent(args),
     revoke: () => ctl.revoke(),
+    bindUser: (u) => ctl.bindUser(u),
   };
 }
 

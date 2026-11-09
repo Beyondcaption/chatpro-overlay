@@ -565,18 +565,27 @@ function updateTrayMenu() {
     ];
     if (needsConsent && tracker) items.push({ label: 'Activity consent...', click: () => openConsent() });
     items.push({ label: 'Revoke consent', click: () => revokeActivity() });
-    items.push(
-      { type: 'separator' },
-      { label: 'Open ChatPro', click: () => showOverlay(null) },
-      { label: 'Schulung', click: () => openSchulung() },
-      { label: 'Settings', click: () => openSettings() },
-      { type: 'separator' },
-      { label: 'Check for updates', click: () => updater.manualCheck() },
-      { type: 'separator' },
-      { label: 'Quit ChatPro', click: () => app.quit() },
-    );
+    items.push({ type: 'separator' }, ...staticTrayItems());
     tray.setContextMenu(Menu.buildFromTemplate(items));
-  } catch (e) {}
+  } catch (e) {
+    // Never lose Quit/Settings: fall back to the original static menu.
+    try {
+      tray.setToolTip('ChatPro');
+      tray.setContextMenu(Menu.buildFromTemplate(staticTrayItems()));
+    } catch (e2) {}
+  }
+}
+
+function staticTrayItems() {
+  return [
+    { label: 'Open ChatPro', click: () => showOverlay(null) },
+    { label: 'Schulung', click: () => openSchulung() },
+    { label: 'Settings', click: () => openSettings() },
+    { type: 'separator' },
+    { label: 'Check for updates', click: () => updater.manualCheck() },
+    { type: 'separator' },
+    { label: 'Quit ChatPro', click: () => app.quit() },
+  ];
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -590,7 +599,8 @@ function macAccessibilityTrusted() {
 
 function activityUsername() {
   const who = currentUser || store.get('_sys', null);
-  return !who ? '' : (typeof who === 'string' ? who : (who.name || who.username || ''));
+  // Relay LOGIN name (not the display name): the server checks the password with it.
+  return !who ? '' : (typeof who === 'string' ? who : (who.username || who.name || ''));
 }
 
 function onActivityState(s) {
@@ -617,6 +627,7 @@ function startActivity() {
       consentVersion: ACTIVITY_CONSENT_VERSION,
       permHeader: () => (macAccessibilityTrusted() ? null : 'no-accessibility'),
       canStartHooks: () => macAccessibilityTrusted(),
+      username: isLoggedIn ? activityUsername() : '',
       onState: onActivityState,
     });
     // The first status can arrive synchronously inside startTracker(), before `tracker`
@@ -837,6 +848,8 @@ ipcMain.handle('stealthLogin', async (event, { username, password }) => {
                 loginWindow.close();
               }
               // Freshly logged in: the consent window may now be due.
+              // A different user on this device: drop the previous user's token and buffer.
+              try { if (tracker) tracker.bindUser(activityUsername()).catch(() => {}); } catch (e) {}
               setTimeout(() => maybeShowConsent(), 1500);
 
               resolve({ ok: true });

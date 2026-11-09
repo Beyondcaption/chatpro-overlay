@@ -85,6 +85,7 @@ button:disabled { opacity:0.55; cursor:not-allowed; }
   document.getElementById('decline').addEventListener('click', function () { submit('declined'); });
   document.getElementById('later').addEventListener('click', function () { api.close(); });
   document.getElementById('password').addEventListener('keydown', function (e) { if (e.key === 'Enter') submit('accepted'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') api.close(); }); // Esc = Later
 })();
 </script>
 </body>

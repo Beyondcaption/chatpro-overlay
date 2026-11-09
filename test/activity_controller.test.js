@@ -60,7 +60,8 @@ function setup({ store, routes, win, startHooks, perm } = {}) {
   const native = {
     hookStarts: 0,
     startHooks: startHooks || (() => { native.hookStarts++; return true; }),
-    stopHooks: () => {},
+    hookStops: 0,
+    stopHooks: () => { native.hookStops++; },
     activeWindow: win || (async () => ({ appName: 'Google Chrome', title: 'Inbox - OnlyMonster', url: '' })),
   };
   const c = createController({
@@ -273,13 +274,13 @@ test('controller: state 401 löscht Token, 500 behält Token und Tracking, 404 =
   c.stop();
 });
 
-test('controller: Serverfehler länger als 15 min -> status_unknown, Tracking aus', async () => {
+test('controller: Serverfehler länger als 5 min -> status_unknown, Tracking aus', async () => {
   let resp = { status: 200, json: { track: true, reason: 'ok', idleMin: 5, consentVersion: VERSION } };
   const { c, clock } = setup({ routes: { 'GET /api/activity/state': () => resp } });
   c.start();
   await clock.flush();
   resp = { status: 0, json: null };
-  await clock.advance(14 * 60000);
+  await clock.advance(4 * 60000);
   assert.equal(c.state().track, true);
   await clock.advance(2 * 60000);
   assert.equal(c.state().track, false);
@@ -470,5 +471,60 @@ test('controller: ohne laufende Hooks (z. B. Mac ohne Bedienungshilfen) keine Nu
   c.onKey();
   await clock.advance(29500); // Grenze 12:03:00
   assert.deepEqual(store.get('_actBuf').map((r) => [r.minute, r.keys]), [['2026-11-09T12:02:00.000Z', 1]]);
+  c.stop();
+});
+
+test('controller: Widerruf und Ablehnen stoppen die OS-Hooks, track=true startet sie wieder', async () => {
+  const store = memStore({ _act: 'tok', _actOwner: 'anna' });
+  const { c, clock, native } = setup({
+    store,
+    routes: {
+      'GET /api/activity/state': { status: 200, json: { track: true, reason: 'ok', idleMin: 5, consentVersion: VERSION } },
+      'POST /api/activity/consent': { status: 200, json: { token: 'tok2' } },
+      'POST /api/activity/revoke': { status: 200, json: { ok: true } },
+    },
+  });
+  c.start();
+  await clock.flush();
+  assert.equal(native.hookStarts, 1);
+  await c.revoke();
+  assert.equal(native.hookStops, 1);
+  await c.consent({ username: 'anna', password: 'pw', decision: 'accepted', deviceId: 'd' });
+  await clock.flush();
+  assert.equal(c.state().track, true);
+  assert.equal(native.hookStarts, 2);
+  await c.consent({ username: 'anna', password: '', decision: 'declined', deviceId: 'd' });
+  assert.equal(native.hookStops, 2);
+  c.stop();
+});
+
+test('controller: Token gehört dem Nutzer; anderer Login löscht Token und Puffer, Widerruf best effort', async () => {
+  const store = memStore({ _act: 'tok', _actOwner: 'anna', _actBuf: [{ minute: '2026-11-09T11:00:00.000Z', keys: 1, mouse: 0, site: null }] });
+  const { c, http } = setup({ store, routes: { 'POST /api/activity/revoke': async () => { throw new Error('offline'); } } });
+  await c.bindUser('Anna');
+  assert.equal(store.get('_act'), 'tok'); // gleicher Nutzer (Groß/klein egal)
+  await c.bindUser('bob');
+  assert.equal(store.get('_act'), null);
+  assert.equal(store.get('_actOwner'), null);
+  assert.equal(store.get('_actBuf').length, 0);
+  assert.equal(store.get('_actDeclined', null), null); // Bob wird gefragt, nicht als abgelehnt markiert
+  assert.equal(http.calls.find((x) => x.path === '/api/activity/revoke').headers['x-activity-token'], 'tok');
+  // Token ohne Besitzer gilt als fremd
+  store.set('_act', 'orphan');
+  await c.bindUser('bob');
+  assert.equal(store.get('_act'), null);
+  // Leerer Nutzer (nicht eingeloggt): nichts tun
+  store.set('_act', 'tok3'); store.set('_actOwner', 'carl');
+  await c.bindUser('');
+  assert.equal(store.get('_act'), 'tok3');
+});
+
+test('controller: Einwilligung speichert den Besitzer des Tokens', async () => {
+  const store = memStore({});
+  const { c, clock } = setup({ store, routes: { 'POST /api/activity/consent': { status: 200, json: { token: 't' } } } });
+  c.start();
+  await clock.flush();
+  await c.consent({ username: 'Anna', password: 'pw', decision: 'accepted', deviceId: 'd' });
+  assert.equal(store.get('_actOwner'), 'anna');
   c.stop();
 });
