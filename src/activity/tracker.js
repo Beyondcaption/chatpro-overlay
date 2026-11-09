@@ -64,7 +64,7 @@ function makeHttp(baseUrl, deviceHeaders) {
 //   -> { stop(), state(), refresh(), consent(args), revoke(), bindUser(username) }
 function startTracker({
   opsUrl, deviceHeaders, store, onState, consentVersion,
-  permHeader = () => null, canStartHooks = () => true, username = '', _native,
+  permHeader = () => 'ok', canStartHooks = () => true, username = '', _native,
 }) {
   const nat = _native || loadNative();
   const missing = !nat.uIOhook || !nat.activeWin;

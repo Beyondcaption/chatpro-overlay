@@ -18,6 +18,8 @@ const KEY_TOKEN = '_act';
 const KEY_BUF = '_actBuf';
 const KEY_DECLINED = '_actDeclined';
 const KEY_OWNER = '_actOwner'; // Login, dem der Token gehoert
+const KEY_PENDING_REVOKE = '_actPendingRevoke'; // widerrufene Tokens, die der Server noch nicht bestaetigt hat
+const MAX_PENDING_REVOKE = 10;
 
 const normUser = (u) => String(u == null ? '' : u).trim().toLowerCase();
 
@@ -63,7 +65,7 @@ function consentErrorMessage(r) {
 
 function createController({
   store, http, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout,
-  consentVersion, native = {}, classify = classifySite, permHeader = () => null, onState = () => {},
+  consentVersion, native = {}, classify = classifySite, permHeader = () => 'ok', onState = () => {},
 }) {
   const buf = createBuffer({ load: () => store.get(KEY_BUF, []), save: (rows) => store.set(KEY_BUF, rows) });
   let agg = createAggregator();
@@ -80,6 +82,7 @@ function createController({
   let sending = false;
   let sendMax = MAX_SEND;
   let epoch = 0; // steigt bei jedem Token-Wechsel; spaete Antworten zum alten Token werden verworfen
+  let revoking = false;
   const fails = { hooks: 0, win: 0 };
   const timers = {};
   let lastEmitted = '';
@@ -123,6 +126,9 @@ function createController({
     } else if (!track && tracking) {
       tracking = false;
       disarm('win');
+      // Ausserhalb der Schicht bleibt kein Low-Level-Hook installiert; ensureHooks startet neu bei track:true.
+      try { native.stopHooks && native.stopHooks(); } catch (e) {}
+      hooksStarted = false;
     }
     reason = why;
     if (tracking) ensureHooks();
@@ -218,22 +224,65 @@ function createController({
     if (site) agg.sample(site);
   }
 
+  // --- Widerruf, der offline passiert ist, nachholen ---
+  function pendingRevokes() {
+    const v = store.get(KEY_PENDING_REVOKE, null);
+    return Array.isArray(v) ? v.filter((t) => typeof t === 'string' && t) : [];
+  }
+  function addPendingRevoke(tok) {
+    try {
+      const list = pendingRevokes().filter((t) => t !== tok);
+      list.push(tok);
+      store.set(KEY_PENDING_REVOKE, list.slice(-MAX_PENDING_REVOKE));
+    } catch (e) {}
+  }
+  // Je Token POST /revoke; 200 (erledigt), 401 (schon ungueltig) und 404 (Feature aus) beenden den Versuch.
+  async function flushRevokes() {
+    if (revoking) return;
+    revoking = true;
+    try {
+      for (const tok of pendingRevokes()) {
+        let r;
+        try { r = await http('POST', '/api/activity/revoke', { headers: { 'x-activity-token': tok } }); } catch (e) { r = { status: 0, json: null }; }
+        const status = r && r.status;
+        if (status === 200 || status === 401 || status === 404) {
+          try { store.set(KEY_PENDING_REVOKE, pendingRevokes().filter((t) => t !== tok)); } catch (e) {}
+        }
+      }
+    } finally {
+      revoking = false;
+    }
+  }
+
+  function permValue() {
+    try { const p = permHeader(); return p ? String(p) : 'ok'; } catch (e) { return 'ok'; }
+  }
+
   async function stateTick() {
     if (!running || errored) return;
+    if (pendingRevokes().length) safe(flushRevokes);
     const tok = token();
+    const my = epoch;
+    const headers = { 'x-activity-perm': permValue() };
+    if (tok) headers['x-activity-token'] = tok;
+    let r;
+    try { r = await http('GET', '/api/activity/state', { headers }); } catch (e) { r = { status: 0, json: null }; }
+    if (!running || errored) return;
+    if (my !== epoch) { arm('state', STATE_MS, stateTick); return; } // Token gewechselt: Antwort verwerfen, Schleife weiter
+    const status = r && r.status;
     if (!tok) {
+      // Ohne Token fragt der Server nur, ob das Feature an ist: 404 aus, 401 an (dann Einwilligung moeglich).
+      if (status === 404) {
+        featureOff = true;
+        setTrack(false, 'feature_off');
+        arm('state', FEATURE_OFF_MS, stateTick);
+        return;
+      }
       featureOff = false;
-      setTrack(false, 'no_consent');
+      setTrack(false, status === 401 ? 'no_consent' : 'status_unknown');
       arm('state', STATE_MS, stateTick);
       return;
     }
-    const my = epoch;
-    const headers = { 'x-activity-token': tok };
-    try { const p = permHeader(); if (p) headers['x-activity-perm'] = p; } catch (e) {}
-    let r;
-    try { r = await http('GET', '/api/activity/state', { headers }); } catch (e) { r = { status: 0, json: null }; }
-    if (!running || errored || my !== epoch) return;
-    const status = r && r.status;
     if (status === 404) {
       featureOff = true;
       setTrack(false, 'feature_off');
@@ -358,9 +407,8 @@ function createController({
     const tok = token();
     try { store.set(KEY_DECLINED, consentVersion); } catch (e) {}
     clearConsent('no_consent');
-    if (tok) {
-      try { await http('POST', '/api/activity/revoke', { headers: { 'x-activity-token': tok } }); } catch (e) { /* lokal bereits gestoppt */ }
-    }
+    // Lokal sofort gestoppt; der Server erfaehrt es jetzt oder bei einem spaeteren Status-Tick.
+    if (tok) { addPendingRevoke(tok); await flushRevokes(); }
     return { ok: true };
   }
 
@@ -375,7 +423,8 @@ function createController({
     if (!u || !tok) return { ok: true, cleared: false };
     if (normUser(store.get(KEY_OWNER, '')) === u) return { ok: true, cleared: false };
     clearConsent('no_consent');
-    try { await http('POST', '/api/activity/revoke', { headers: { 'x-activity-token': tok } }); } catch (e) {}
+    addPendingRevoke(tok);
+    await flushRevokes();
     if (running) refresh();
     return { ok: true, cleared: true };
   }
@@ -385,5 +434,5 @@ function createController({
 
 module.exports = {
   createController, shouldShowConsent, trayLabel, consentErrorMessage, msUntilNextMinute,
-  KEY_TOKEN, KEY_BUF, KEY_DECLINED, KEY_OWNER,
+  KEY_TOKEN, KEY_BUF, KEY_DECLINED, KEY_OWNER, KEY_PENDING_REVOKE,
 };

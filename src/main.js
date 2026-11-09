@@ -625,7 +625,8 @@ function startActivity() {
       deviceHeaders: DEVICE_HEADERS,
       store,
       consentVersion: ACTIVITY_CONSENT_VERSION,
-      permHeader: () => (macAccessibilityTrusted() ? null : 'no-accessibility'),
+      // Always sent on /state (non-Mac: always 'ok'); the server keeps it per device.
+      permHeader: () => (macAccessibilityTrusted() ? 'ok' : 'no-accessibility'),
       canStartHooks: () => macAccessibilityTrusted(),
       username: isLoggedIn ? activityUsername() : '',
       onState: onActivityState,

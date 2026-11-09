@@ -71,13 +71,118 @@ function setup({ store, routes, win, startHooks, perm } = {}) {
   return { c, clock, store: s, http, states, native };
 }
 
-test('controller: ohne Token kein Request, Status no_consent', async () => {
-  const { c, clock, http } = setup({ store: memStore({}) });
+test('controller: ohne Token fragt /state ohne Token; 401 -> no_consent (Dialog möglich)', async () => {
+  const { c, clock, http } = setup({ store: memStore({}), routes: { 'GET /api/activity/state': { status: 401, json: { error: 'unauthorized' } } } });
   c.start();
   await clock.flush();
   assert.equal(c.state().reason, 'no_consent');
   assert.equal(c.state().track, false);
-  assert.equal(http.calls.filter((x) => x.path === '/api/activity/state').length, 0);
+  const calls = http.calls.filter((x) => x.path === '/api/activity/state');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].headers['x-activity-token'], undefined);
+  assert.equal(calls[0].headers['x-activity-perm'], 'ok');
+  assert.equal(shouldShowConsent({ loggedIn: true, reason: c.state().reason, declinedVersion: null, version: VERSION, shownThisRun: false }), true);
+  await clock.advance(60000);
+  assert.equal(http.calls.filter((x) => x.path === '/api/activity/state').length, 2);
+  c.stop();
+});
+
+test('controller: ohne Token und Feature aus (404) -> feature_off, kein Dialog, Re-Check nach 10 min', async () => {
+  const { c, clock, http } = setup({ store: memStore({}), routes: { 'GET /api/activity/state': { status: 404, json: { error: 'activity tracking off' } } } });
+  c.start();
+  await clock.flush();
+  assert.equal(c.state().reason, 'feature_off');
+  assert.equal(shouldShowConsent({ loggedIn: true, reason: c.state().reason, declinedVersion: null, version: VERSION, shownThisRun: false }), false);
+  await clock.advance(9 * 60000);
+  assert.equal(http.calls.filter((x) => x.path === '/api/activity/state').length, 1);
+  await clock.advance(60000);
+  assert.equal(http.calls.filter((x) => x.path === '/api/activity/state').length, 2);
+  c.stop();
+});
+
+test('controller: ohne Token und Netzfehler oder 500 -> status_unknown, kein Dialog in diesem Tick', async () => {
+  let resp = { status: 0, json: null };
+  const { c, clock } = setup({ store: memStore({}), routes: { 'GET /api/activity/state': () => resp } });
+  c.start();
+  await clock.flush();
+  assert.equal(c.state().reason, 'status_unknown');
+  resp = { status: 500, json: { error: 'server_error' } };
+  await clock.advance(60000);
+  assert.equal(c.state().reason, 'status_unknown');
+  assert.equal(shouldShowConsent({ loggedIn: true, reason: c.state().reason, declinedVersion: null, version: VERSION, shownThisRun: false }), false);
+  resp = { status: 401, json: { error: 'unauthorized' } };
+  await clock.advance(60000);
+  assert.equal(c.state().reason, 'no_consent');
+  c.stop();
+});
+
+test('controller: x-activity-perm wird immer gesendet, Standard ok', async () => {
+  const { c, clock, http } = setup();
+  c.start();
+  await clock.flush();
+  assert.equal(http.calls.find((x) => x.path === '/api/activity/state').headers['x-activity-perm'], 'ok');
+  c.stop();
+});
+
+test('controller: Wechsel auf track=false stoppt die OS-Hooks, track=true startet sie wieder', async () => {
+  let track = true;
+  const { c, clock, native } = setup({
+    routes: { 'GET /api/activity/state': () => ({ status: 200, json: { track, reason: track ? 'ok' : 'off_shift', idleMin: 5, consentVersion: VERSION } }) },
+  });
+  c.start();
+  await clock.flush();
+  assert.equal(native.hookStarts, 1);
+  assert.equal(native.hookStops, 0);
+  track = false;
+  await clock.advance(60000);
+  assert.equal(c.state().reason, 'off_shift');
+  assert.equal(native.hookStops, 1);
+  await clock.advance(60000); // weiter aus: nicht erneut stoppen, nicht starten
+  assert.equal(native.hookStops, 1);
+  assert.equal(native.hookStarts, 1);
+  track = true;
+  await clock.advance(60000);
+  assert.equal(c.state().track, true);
+  assert.equal(native.hookStarts, 2);
+  c.stop();
+});
+
+test('controller: Offline-Widerruf bleibt als _actPendingRevoke und wird nachgeholt bis 200/401/404', async () => {
+  let revokeResp = { status: 0, json: null };
+  const store = memStore({ _act: 'tok' });
+  const { c, clock, http } = setup({
+    store,
+    routes: {
+      'GET /api/activity/state': (o) => (o.headers['x-activity-token'] ? { status: 200, json: { track: true, reason: 'ok', idleMin: 5, consentVersion: VERSION } } : { status: 401, json: { error: 'unauthorized' } }),
+      'POST /api/activity/revoke': () => revokeResp,
+    },
+  });
+  c.start();
+  await clock.flush();
+  assert.equal(c.state().track, true);
+  await c.revoke();
+  assert.deepEqual(store.get('_actPendingRevoke'), ['tok']);
+  assert.equal(c.state().track, false);
+  revokeResp = { status: 500, json: { error: 'server_error' } };
+  await clock.advance(60000);
+  const revokes = () => http.calls.filter((x) => x.path === '/api/activity/revoke');
+  assert.equal(revokes().length, 2);
+  assert.deepEqual(store.get('_actPendingRevoke'), ['tok']);
+  assert.equal(c.state().track, false); // lokal bleibt es aus
+  revokeResp = { status: 200, json: { ok: true } };
+  await clock.advance(60000);
+  assert.equal(revokes().length, 3);
+  assert.equal(revokes()[2].headers['x-activity-token'], 'tok');
+  assert.deepEqual(store.get('_actPendingRevoke'), []);
+  await clock.advance(60000);
+  assert.equal(revokes().length, 3); // nichts mehr offen
+  // 401 und 404 beenden den Versuch ebenfalls
+  for (const status of [401, 404]) {
+    store.set('_actPendingRevoke', ['old' + status]);
+    revokeResp = { status, json: {} };
+    await clock.advance(60000);
+    assert.deepEqual(store.get('_actPendingRevoke'), [], String(status));
+  }
   c.stop();
 });
 
@@ -210,7 +315,8 @@ test('controller: Senden 403 stoppt Tracking, löscht Token und Puffer', async (
   const { c, clock } = setup({
     store,
     routes: {
-      'GET /api/activity/state': { status: 200, json: { track: true, reason: 'ok', idleMin: 5, consentVersion: VERSION } },
+      // Wie der Server: ohne Token 401
+      'GET /api/activity/state': (o) => (o.headers['x-activity-token'] ? { status: 200, json: { track: true, reason: 'ok', idleMin: 5, consentVersion: VERSION } } : { status: 401, json: { error: 'unauthorized' } }),
       'POST /api/activity/minutes': { status: 403, json: { error: 'no_consent' } },
     },
   });
