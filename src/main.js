@@ -60,7 +60,7 @@ const store = {
 // The logic lives in src/activity/ (controller.js is pure and unit-tested); main.js only
 // wires Electron to it. Any tracker failure disables the tracker, never the overlay.
 let activityLib = null;
-try { activityLib = { ...require('./activity/tracker'), ...require('./activity/controller') }; } catch (e) { activityLib = null; }
+try { activityLib = { ...require('./activity/tracker'), ...require('./activity/controller'), ...require('./activity/livepoll') }; } catch (e) { activityLib = null; }
 // Consent text version comes from consent.html (data-version), the single source of truth.
 const ACTIVITY_CONSENT_VERSION = (() => {
   try {
@@ -609,6 +609,8 @@ function onActivityState(s) {
     updateTrayMenu();
     if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.webContents.send('activity-state', s);
     maybeShowConsent();
+    // Live-Poller läuft nur während getrackter Schicht (Einstempeln, Einwilligung, keine Pause).
+    if (s.track) startLivePoller(); else stopLivePoller();
     if (s.track && !macAccessibilityTrusted()) showAccessibilityDialog();
   } catch (e) {}
 }
@@ -639,6 +641,146 @@ function startActivity() {
     activityState = { track: false, reason: 'error', label: 'Activity tracking: error' };
     updateTrayMenu();
   }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LIVE VIEW (Teil 2): Poller, verstecktes Capture-Fenster, roter Hinweis
+// ══════════════════════════════════════════════════════════════════
+let livePoller = null;
+let liveWindow = null;
+let liveBannerWindow = null;
+let liveWaiter = null; // { resolve, timer } für das Offer des Renderers
+
+// Gerätetoken wird je Anfrage aus dem Store gelesen (ASCII-bereinigt, sonst wirft https.request).
+function liveHttp() {
+  const base = activityLib.makeHttp(ACTIVITY_URL, DEVICE_HEADERS);
+  return (method, p, opts = {}) => {
+    const tok = String(store.get('_act', null) || '').replace(/[^\x20-\x7e]/g, '');
+    if (!tok) return Promise.resolve({ status: 0, json: null });
+    return base(method, p, { ...opts, headers: { ...(opts.headers || {}), 'x-activity-token': tok } });
+  };
+}
+
+function closeLiveWindow() {
+  try {
+    if (liveWaiter) { clearTimeout(liveWaiter.timer); liveWaiter.resolve(null); liveWaiter = null; }
+    if (liveWindow && !liveWindow.isDestroyed()) {
+      try { liveWindow.webContents.send('live:stop'); } catch (e) {}
+      liveWindow.destroy();
+    }
+  } catch (e) {}
+  liveWindow = null;
+}
+
+const liveCapture = {
+  // Öffnet das versteckte Fenster, startet die Aufnahme aller Monitore, liefert {sdp, candidates}.
+  async begin({ id, iceServers }) {
+    closeLiveWindow();
+    const { desktopCapturer } = require('electron');
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
+    const sourceIds = sources.map(s => s.id);
+    if (!sourceIds.length) return null;
+    const win = new BrowserWindow({
+      show: false, width: 320, height: 240,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload-live.js'),
+        backgroundThrottling: false,
+        devTools: false,
+      },
+    });
+    liveWindow = win;
+    win.on('closed', () => { if (liveWindow === win) liveWindow = null; });
+    await win.loadFile(path.join(__dirname, 'live.html'));
+    if (liveWindow !== win) return null;
+    const offer = new Promise((resolve) => {
+      const timer = setTimeout(() => { liveWaiter = null; resolve(null); }, 20000);
+      liveWaiter = { resolve, timer };
+    });
+    win.webContents.send('live:start', { sourceIds, iceServers: iceServers || [] });
+    return offer;
+  },
+  remote(payload) {
+    if (liveWindow && !liveWindow.isDestroyed()) liveWindow.webContents.send('live:remote', payload);
+  },
+  stop() { closeLiveWindow(); },
+};
+
+ipcMain.on('live:offer', (event, payload) => {
+  try {
+    if (!liveWindow || event.sender !== liveWindow.webContents) return;
+    if (liveWaiter) {
+      const w = liveWaiter; liveWaiter = null; clearTimeout(w.timer);
+      w.resolve(payload && typeof payload.sdp === 'string' ? { sdp: payload.sdp, candidates: Array.isArray(payload.candidates) ? payload.candidates : [] } : null);
+    }
+  } catch (e) {}
+});
+ipcMain.on('live:candidate', (event, cand) => {
+  try {
+    if (!liveWindow || event.sender !== liveWindow.webContents) return;
+    if (livePoller) livePoller.candidate(cand);
+  } catch (e) {}
+});
+
+// Roter Hinweis: eigenes rahmenloses Fenster, über allem, auch über Vollbild.
+function showLiveBanner(viewer) {
+  try {
+    if (!liveBannerWindow || liveBannerWindow.isDestroyed()) {
+      const { width } = screen.getPrimaryDisplay().workArea;
+      const w = 360;
+      liveBannerWindow = new BrowserWindow({
+        width: w, height: 34, x: Math.round((width - w) / 2), y: 0,
+        frame: false, transparent: true, resizable: false, movable: false, focusable: false,
+        skipTaskbar: true, show: false, hasShadow: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: path.join(__dirname, 'preload-banner.js'),
+          devTools: false,
+        },
+      });
+      liveBannerWindow.setAlwaysOnTop(true, 'screen-saver');
+      liveBannerWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      liveBannerWindow.setIgnoreMouseEvents(true);
+      liveBannerWindow.on('closed', () => { liveBannerWindow = null; });
+      liveBannerWindow.loadFile(path.join(__dirname, 'live-banner.html'));
+    }
+    const win = liveBannerWindow;
+    const push = () => {
+      if (win.isDestroyed()) return;
+      win.webContents.send('live-banner:viewer', viewer || '');
+      win.showInactive();
+      win.setAlwaysOnTop(true, 'screen-saver');
+    };
+    if (win.webContents.isLoading()) win.webContents.once('did-finish-load', push); else push();
+  } catch (e) {}
+}
+
+function hideLiveBanner() {
+  try {
+    if (liveBannerWindow && !liveBannerWindow.isDestroyed()) liveBannerWindow.destroy();
+  } catch (e) {}
+  liveBannerWindow = null;
+}
+
+function startLivePoller() {
+  try {
+    if (livePoller || !activityLib || !activityLib.createLivePoller) return;
+    livePoller = activityLib.createLivePoller({
+      http: liveHttp(),
+      capture: liveCapture,
+      onBanner: (b) => { if (b && b.active) showLiveBanner(b.viewer); else hideLiveBanner(); },
+    });
+    livePoller.start();
+  } catch (e) { livePoller = null; }
+}
+
+function stopLivePoller() {
+  try { if (livePoller) livePoller.stop(); } catch (e) {}
+  livePoller = null;
+  closeLiveWindow();
+  hideLiveBanner();
 }
 
 // Consent window once per app start: logged in, no (current) consent, this version not declined.
@@ -743,6 +885,7 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   if (clipboardInterval) clearInterval(clipboardInterval);
   try { if (tracker) tracker.stop(); } catch (e) {}
+  stopLivePoller();
 });
 
 // ══════════════════════════════════════════════════════════════════
