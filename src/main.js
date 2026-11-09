@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, Tray, Menu, nativeImage, screen, shell, dialog } = require('electron');
+const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, Tray, Menu, nativeImage, screen, shell, dialog, systemPreferences } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -55,6 +55,26 @@ const store = {
   get(key, def) { this._load(); return this._data[key] !== undefined ? this._data[key] : def; },
   set(key, val) { this._load(); this._data[key] = val; saveStore(this._data); },
 };
+
+// ── Activity tracker (consent-based, only while clocked in) ──
+// The logic lives in src/activity/ (controller.js is pure and unit-tested); main.js only
+// wires Electron to it. Any tracker failure disables the tracker, never the overlay.
+let activityLib = null;
+try { activityLib = { ...require('./activity/tracker'), ...require('./activity/controller') }; } catch (e) { activityLib = null; }
+// Consent text version comes from consent.html (data-version), the single source of truth.
+const ACTIVITY_CONSENT_VERSION = (() => {
+  try {
+    const m = fs.readFileSync(path.join(__dirname, 'consent.html'), 'utf8').match(/data-version="([^"]+)"/);
+    return m ? m[1] : '2026-11-09';
+  } catch (e) { return '2026-11-09'; }
+})();
+// Dev only: point the tracker at a local chatpro-ops (e.g. http://localhost:3000).
+const ACTIVITY_URL = (!app.isPackaged && process.env.CHATPRO_ACTIVITY_URL) || OPS_URL;
+let tracker = null;
+let consentWindow = null;
+let consentShownThisRun = false;
+let accessDialogShown = false;
+let activityState = { track: false, reason: 'starting', label: 'Activity tracking: starting' };
 
 // ── Update checks live in src/updater.js (ops-server feed, not GitHub direct) ──
 // The old api.github.com/releases/latest check is gone: it needs the repo to stay
@@ -529,18 +549,159 @@ function createTray() {
     icon = nativeImage.createEmpty();
   }
   tray = new Tray(icon);
-  tray.setToolTip('ChatPro');
-  const menu = Menu.buildFromTemplate([
-    { label: 'Open ChatPro', click: () => showOverlay(null) },
-    { label: 'Schulung', click: () => openSchulung() },
-    { label: 'Settings', click: () => openSettings() },
-    { type: 'separator' },
-    { label: 'Check for updates', click: () => updater.manualCheck() },
-    { type: 'separator' },
-    { label: 'Quit ChatPro', click: () => app.quit() },
-  ]);
-  tray.setContextMenu(menu);
+  updateTrayMenu();
   tray.on('click', () => showOverlay(null));
+}
+
+// Tray menu with the visible activity status as first entry (rebuilt on every status change).
+function updateTrayMenu() {
+  if (!tray) return;
+  try {
+    const label = activityState.label || 'Activity tracking: off';
+    const needsConsent = activityState.reason === 'no_consent' || activityState.reason === 'old_consent';
+    tray.setToolTip('ChatPro\n' + label);
+    const items = [
+      { label, enabled: false },
+    ];
+    if (needsConsent && tracker) items.push({ label: 'Activity consent...', click: () => openConsent() });
+    items.push({ label: 'Revoke consent', click: () => revokeActivity() });
+    items.push(
+      { type: 'separator' },
+      { label: 'Open ChatPro', click: () => showOverlay(null) },
+      { label: 'Schulung', click: () => openSchulung() },
+      { label: 'Settings', click: () => openSettings() },
+      { type: 'separator' },
+      { label: 'Check for updates', click: () => updater.manualCheck() },
+      { type: 'separator' },
+      { label: 'Quit ChatPro', click: () => app.quit() },
+    );
+    tray.setContextMenu(Menu.buildFromTemplate(items));
+  } catch (e) {}
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ACTIVITY TRACKER WIRING
+// ══════════════════════════════════════════════════════════════════
+
+function macAccessibilityTrusted() {
+  if (process.platform !== 'darwin') return true;
+  try { return systemPreferences.isTrustedAccessibilityClient(false); } catch (e) { return false; }
+}
+
+function activityUsername() {
+  const who = currentUser || store.get('_sys', null);
+  return !who ? '' : (typeof who === 'string' ? who : (who.name || who.username || ''));
+}
+
+function onActivityState(s) {
+  try {
+    activityState = s;
+    updateTrayMenu();
+    if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.webContents.send('activity-state', s);
+    maybeShowConsent();
+    if (s.track && !macAccessibilityTrusted()) showAccessibilityDialog();
+  } catch (e) {}
+}
+
+function startActivity() {
+  if (!activityLib) {
+    activityState = { track: false, reason: 'error', label: 'Activity tracking: error' };
+    updateTrayMenu();
+    return;
+  }
+  try {
+    tracker = activityLib.startTracker({
+      opsUrl: ACTIVITY_URL,
+      deviceHeaders: DEVICE_HEADERS,
+      store,
+      consentVersion: ACTIVITY_CONSENT_VERSION,
+      permHeader: () => (macAccessibilityTrusted() ? null : 'no-accessibility'),
+      canStartHooks: () => macAccessibilityTrusted(),
+      onState: onActivityState,
+    });
+    // The first status can arrive synchronously inside startTracker(), before `tracker`
+    // is set; re-run the status consumers once it is.
+    onActivityState(tracker.state());
+  } catch (e) {
+    tracker = null;
+    activityState = { track: false, reason: 'error', label: 'Activity tracking: error' };
+    updateTrayMenu();
+  }
+}
+
+// Consent window once per app start: logged in, no (current) consent, this version not declined.
+function maybeShowConsent() {
+  try {
+    if (!tracker || !activityLib) return;
+    const show = activityLib.shouldShowConsent({
+      loggedIn: isLoggedIn && !!activityUsername(),
+      reason: activityState.reason,
+      declinedVersion: store.get('_actDeclined', null),
+      version: ACTIVITY_CONSENT_VERSION,
+      shownThisRun: consentShownThisRun,
+    });
+    if (!show) return;
+    consentShownThisRun = true;
+    openConsent();
+  } catch (e) {}
+}
+
+function openConsent() {
+  try {
+    if (consentWindow && !consentWindow.isDestroyed()) { consentWindow.show(); consentWindow.focus(); return; }
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    consentWindow = new BrowserWindow({
+      width: 520, height: 560,
+      x: Math.round((width - 520) / 2), y: Math.round((height - 560) / 2),
+      frame: false, transparent: false, resizable: false, show: false,
+      skipTaskbar: false,
+      icon: path.join(__dirname, '..', 'assets', 'icon.png'),
+      backgroundColor: '#121212',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload-consent.js'),
+        devTools: false
+      },
+    });
+    consentWindow.loadFile(path.join(__dirname, 'consent.html'));
+    consentWindow.once('ready-to-show', () => { if (consentWindow && !consentWindow.isDestroyed()) { consentWindow.show(); consentWindow.focus(); } });
+    consentWindow.on('closed', () => { consentWindow = null; });
+    setupWindowSecurity(consentWindow);
+  } catch (e) {}
+}
+
+async function revokeActivity() {
+  try {
+    if (tracker) {
+      await tracker.revoke();
+    } else {
+      // Tracker never started: still drop the local consent token and buffer.
+      store.set('_act', null);
+      store.set('_actBuf', []);
+      store.set('_actDeclined', ACTIVITY_CONSENT_VERSION);
+    }
+    dialog.showMessageBox({ type: 'info', buttons: ['OK'], title: 'ChatPro', message: 'Consent revoked.', detail: 'Activity tracking is off on this computer. You can give consent again from the tray menu.' }).catch(() => {});
+  } catch (e) {}
+  return { ok: true };
+}
+
+// Mac: uiohook needs Accessibility. Without it no input is counted (the server is told via
+// x-activity-perm); ask once per app start and offer to open the system prompt.
+function showAccessibilityDialog() {
+  if (process.platform !== 'darwin' || accessDialogShown) return;
+  accessDialogShown = true;
+  dialog.showMessageBox({
+    type: 'info',
+    buttons: ['Open settings', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'ChatPro activity tracking',
+    message: 'ChatPro needs Accessibility access to count keys and mouse use.',
+    detail: 'Turn on ChatPro in System Settings > Privacy & Security > Accessibility, then restart ChatPro.',
+  }).then((r) => {
+    if (r.response === 0) { try { systemPreferences.isTrustedAccessibilityClient(true); } catch (e) {} }
+  }).catch(() => {});
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -561,12 +722,15 @@ app.whenReady().then(() => {
   } else {
     setTimeout(() => showStealthLogin(), 2000);
   }
+
+  startActivity();
 });
 
 app.on('window-all-closed', (e) => e.preventDefault());
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   if (clipboardInterval) clearInterval(clipboardInterval);
+  try { if (tracker) tracker.stop(); } catch (e) {}
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -672,7 +836,9 @@ ipcMain.handle('stealthLogin', async (event, { username, password }) => {
               if (loginWindow && !loginWindow.isDestroyed()) {
                 loginWindow.close();
               }
-              
+              // Freshly logged in: the consent window may now be due.
+              setTimeout(() => maybeShowConsent(), 1500);
+
               resolve({ ok: true });
             } else {
               resolve({ ok: false, error: 'Invalid credentials' });
@@ -818,3 +984,29 @@ ipcMain.handle('close-model-sheet',() => { if (modelSheetWindow && !modelSheetWi
 ipcMain.handle('open-settings',  () => openSettings());
 ipcMain.handle('open-url',       (e, url) => shell.openExternal(url));
 ipcMain.handle('check-update',   () => { updater.manualCheck(); return { ok: true }; });
+
+// ── Activity tracker IPC (every handler wrapped: errors never reach the overlay) ──
+ipcMain.handle('activity-consent', async (e, { password, decision } = {}) => {
+  try {
+    // Only the consent window may give or decline consent.
+    if (!consentWindow || consentWindow.isDestroyed() || e.sender !== consentWindow.webContents) return { ok: false, error: 'Please use the consent window.' };
+    if (!tracker) return { ok: false, error: 'Activity tracking is not available on this computer.' };
+    return await tracker.consent({
+      username: activityUsername(),
+      password: String(password || ''),
+      decision: decision === 'accepted' ? 'accepted' : 'declined',
+      deviceId: DEVICE_HEADERS['x-device-id'] || '',
+    });
+  } catch (err) {
+    return { ok: false, error: 'Something went wrong. Please try again.' };
+  }
+});
+ipcMain.handle('activity-consent-close', () => {
+  try { if (consentWindow && !consentWindow.isDestroyed()) consentWindow.close(); } catch (e) {}
+  return { ok: true };
+});
+ipcMain.handle('activity-revoke', () => revokeActivity());
+ipcMain.handle('activity-state', () => {
+  try { return { ...activityState }; } catch (e) { return { track: false, reason: 'error', label: 'Activity tracking: error' }; }
+});
+ipcMain.handle('open-activity-consent', () => { try { if (tracker) openConsent(); } catch (e) {} return { ok: true }; });

@@ -33,6 +33,12 @@ contextBridge.exposeInMainWorld('chatpro', {
   onOverlayShown:  (cb)    => ipcRenderer.on('overlay-shown', () => cb()),
   onAutoSwitchLanguage: (cb) => ipcRenderer.on('auto-switch-language', (e, code) => cb(code)),
 
+  // ═══ ACTIVITY TRACKING (visible status, consent, revoke) ═══
+  getActivityState:    ()   => ipcRenderer.invoke('activity-state'),
+  activityRevoke:      ()   => ipcRenderer.invoke('activity-revoke'),
+  openActivityConsent: ()   => ipcRenderer.invoke('open-activity-consent'),
+  onActivityState:     (cb) => ipcRenderer.on('activity-state', (e, s) => cb(s)),
+
   // ═══ STEALTH LOGIN (Only for login window) ═══
   stealthLogin:    (cred)  => ipcRenderer.invoke('stealthLogin', cred),
 });
