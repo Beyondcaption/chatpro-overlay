@@ -4,6 +4,7 @@
   "description": "ChatPro — German reply overlay for OnlyFans chatters",
   "main": "src/main.js",
   "scripts": {
+    "test": "node --test test/*.test.js",
     "gensecrets": "node scripts/gen-secrets.js",
     "prestart": "node scripts/gen-secrets.js",
     "start": "electron .",
