@@ -746,10 +746,12 @@ ipcMain.on('live:candidate', (event, cand) => {
 function showLiveBanner(viewer) {
   try {
     if (!liveBannerWindow || liveBannerWindow.isDestroyed()) {
-      const { width } = screen.getPrimaryDisplay().workArea;
-      const w = 360;
+      // Kleiner, unaufdringlicher roter Punkt unten rechts (lenkt nicht von der Arbeit ab,
+      // bleibt aber sichtbar, solange die Live-Ansicht laeuft).
+      const wa = screen.getPrimaryDisplay().workArea;
+      const w = 26, h = 26, margin = 14;
       liveBannerWindow = new BrowserWindow({
-        width: w, height: 34, x: Math.round((width - w) / 2), y: 0,
+        width: w, height: h, x: wa.x + wa.width - w - margin, y: wa.y + wa.height - h - margin,
         frame: false, transparent: true, resizable: false, movable: false, focusable: false,
         skipTaskbar: true, show: false, hasShadow: false,
         webPreferences: {
@@ -1173,10 +1175,14 @@ ipcMain.handle('activity-consent', async (e, { password, decision } = {}) => {
     // Only the consent window may give or decline consent.
     if (!consentWindow || consentWindow.isDestroyed() || e.sender !== consentWindow.webContents) return { ok: false, error: 'Please use the consent window.' };
     if (!tracker) return { ok: false, error: 'Activity tracking is not available on this computer.' };
-    // Kein getipptes Passwort noetig: das in dieser Sitzung angemeldete nehmen. Fehlt es (App neu
-    // geoeffnet, nur gespeicherter Login), einmalig nachfragen (needPassword -> Feld im Fenster).
-    const pw = String(password || '') || sessionPassword || '';
-    if (decision === 'accepted' && !pw) return { ok: false, needPassword: true };
+    // Kein Passwortfeld im Einwilligungsfenster: die Identitaet kommt aus der ChatPro-Anmeldung
+    // dieser Sitzung (sessionPassword). Fehlt sie (App neu geoeffnet / nur gespeicherter Login),
+    // oeffnen wir das gewohnte Login-Fenster; nach dem Login genuegt ein erneuter Klick auf I agree.
+    const pw = sessionPassword || '';
+    if (decision === 'accepted' && !pw) {
+      try { showStealthLogin(); } catch (e) {}
+      return { ok: false, needLogin: true };
+    }
     const r = await tracker.consent({
       username: activityUsername(),
       password: pw,

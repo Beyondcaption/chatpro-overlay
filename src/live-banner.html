@@ -5,26 +5,26 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
 <title>ChatPro live view</title>
 <style>
-/* Auffälliger roter Balken, nicht klickbar, nie unsichtbar solange die Live-Ansicht läuft. */
+/* Kleiner roter Punkt unten rechts: unaufdringlich, aber sichtbar solange die Live-Ansicht laeuft. */
 html,body { margin:0; padding:0; background:transparent; overflow:hidden; user-select:none; -webkit-app-region:no-drag; }
-#bar {
-  box-sizing:border-box; height:100vh; display:flex; align-items:center; justify-content:center; gap:10px;
-  background:#d91e18; color:#fff; font:600 14px/1 "Segoe UI", system-ui, sans-serif;
-  border-radius:0 0 10px 10px; box-shadow:0 2px 12px rgba(0,0,0,.45);
+#bar { box-sizing:border-box; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; }
+#dot {
+  width:14px; height:14px; border-radius:50%; background:#d91e18;
+  box-shadow:0 0 0 2px rgba(255,255,255,.7), 0 1px 6px rgba(0,0,0,.5);
+  animation:pulse 1.4s infinite;
 }
-#dot { width:10px; height:10px; border-radius:50%; background:#fff; animation:pulse 1.2s infinite; }
-@keyframes pulse { 50% { opacity:.25; } }
+@keyframes pulse { 50% { opacity:.35; } }
 </style>
 </head>
 <body>
-<div id="bar"><span id="dot"></span><span id="txt">Live view active</span></div>
+<div id="bar"><span id="dot" title="Live view active"></span></div>
 <script>
 (function () {
-  var txt = document.getElementById('txt');
+  var dot = document.getElementById('dot');
   if (window.liveBanner && window.liveBanner.onViewer) {
     window.liveBanner.onViewer(function (viewer) {
-      // textContent statt innerHTML: der Name kommt von außen
-      txt.textContent = viewer ? 'Live view active: ' + String(viewer).slice(0, 60) : 'Live view active';
+      // Name nur als Tooltip (textContent-frei), der Punkt bleibt klein.
+      dot.title = viewer ? 'Live view active: ' + String(viewer).slice(0, 60) : 'Live view active';
     });
   }
 })();
