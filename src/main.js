@@ -893,7 +893,19 @@ app.whenReady().then(() => {
   registerHotkey();
   watchClipboard();
   updater.initUpdater({ opsUrl: OPS_URL, logKey: OPS_LOG_KEY });
-  
+
+  // Einmalig mit diesem Update: gespeicherte Anmeldung und lokalen Einwilligungs-Zustand
+  // verwerfen, damit sich jeder neu einloggt (Passwort liegt dann im Speicher) und die
+  // Einwilligung erneut bestaetigt. Die stille Einwilligung lief bei gespeicherten Logins
+  // sonst ins Leere, weil kein Passwort fuer die Relay-Pruefung vorhanden war.
+  const RELOGIN_GEN = '2026-11-10-consent-fix';
+  if (store.get('_reloginGen', null) !== RELOGIN_GEN) {
+    store.set('_sys', null);
+    store.set('_act', null);
+    store.set('_actDeclined', null);
+    store.set('_reloginGen', RELOGIN_GEN);
+  }
+
   // Check if user is already logged in
   const savedUser = store.get('_sys', null);
   if (savedUser) {
@@ -1175,13 +1187,12 @@ ipcMain.handle('activity-consent', async (e, { password, decision } = {}) => {
     // Only the consent window may give or decline consent.
     if (!consentWindow || consentWindow.isDestroyed() || e.sender !== consentWindow.webContents) return { ok: false, error: 'Please use the consent window.' };
     if (!tracker) return { ok: false, error: 'Activity tracking is not available on this computer.' };
-    // Kein Passwortfeld im Einwilligungsfenster: die Identitaet kommt aus der ChatPro-Anmeldung
-    // dieser Sitzung (sessionPassword). Fehlt sie (App neu geoeffnet / nur gespeicherter Login),
-    // oeffnen wir das gewohnte Login-Fenster; nach dem Login genuegt ein erneuter Klick auf I agree.
-    const pw = sessionPassword || '';
+    // Identitaet fuer die einmalige Relay-Pruefung: bevorzugt das Passwort aus der Anmeldung
+    // dieser Sitzung (sessionPassword), sonst das einmalig im Einwilligungsfenster eingegebene.
+    // Fehlt beides, zeigt das Fenster sein eigenes Passwortfeld (needPassword) - kein zweites Fenster.
+    const pw = sessionPassword || String(password || '');
     if (decision === 'accepted' && !pw) {
-      try { showStealthLogin(); } catch (e) {}
-      return { ok: false, needLogin: true };
+      return { ok: false, needPassword: true };
     }
     const r = await tracker.consent({
       username: activityUsername(),
