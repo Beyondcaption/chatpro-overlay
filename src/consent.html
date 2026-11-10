@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+<title>ChatPro activity tracking</title>
+<style>
+/* Charcoal Ink, same tokens as settings.html */
+:root {
+  --bg:#121212; --panel:#1a1a1a; --panel-2:#212121; --raise:#2a2a2a;
+  --text:#ededed; --text-2:#cfcfcf; --muted:#8f8f8f;
+  --accent:#f3f3f3; --accent-ink:#121212; --high:#ef6b5e; --money:#4fc38a;
+  --radius:6px; --font:'Inter','Segoe UI',system-ui,sans-serif;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { color-scheme:dark; }
+html,body { font-family:var(--font); background:var(--bg); color:var(--text); font-size:13px; line-height:1.55; height:100%; -webkit-font-smoothing:antialiased; }
+body { -webkit-app-region:drag; }
+main { padding:22px 24px 20px; height:100%; overflow-y:auto; }
+h1 { font-size:16px; font-weight:600; letter-spacing:-0.01em; margin-bottom:12px; }
+p { color:var(--text-2); margin-bottom:10px; }
+ul { list-style:none; margin:0 0 12px; }
+li { color:var(--text-2); padding-left:14px; position:relative; margin-bottom:6px; }
+li::before { content:'\2022'; position:absolute; left:0; color:var(--muted); }
+.confirm { color:var(--text); margin-top:14px; }
+input, button, a { -webkit-app-region:no-drag; }
+input { width:100%; padding:10px 12px; margin:8px 0 10px; background:var(--panel-2); border:1px solid var(--raise); color:var(--text); border-radius:var(--radius); font:inherit; }
+input:focus { outline:none; border-color:#d0d0d0; }
+.row { display:flex; gap:8px; }
+button { flex:1; padding:10px; border-radius:var(--radius); border:1px solid var(--raise); background:var(--panel-2); color:var(--text); font:inherit; font-weight:600; cursor:pointer; }
+button.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+button:disabled { opacity:0.55; cursor:not-allowed; }
+.msg { min-height:18px; margin-top:10px; font-size:12px; }
+.msg.err { color:var(--high); }
+.msg.ok { color:var(--money); }
+</style>
+</head>
+<body>
+<main id="consent" data-version="2026-11-09">
+  <h1>ChatPro activity tracking</h1>
+  <p>While you are clocked in (and not on a break) in the Beyond Caption Team app, ChatPro records:</p>
+  <ul>
+    <li>how many keys you press and how much you use the mouse, per minute (never which keys or what you type)</li>
+    <li>minutes without any input (idle time)</li>
+    <li>which app or website is in front (for example "OnlyMonster" or "YouTube"), never window titles or chat content</li>
+  </ul>
+  <p>Not recorded: anything outside your shift or during breaks, screenshots, typed text, clipboard.<br>
+  Who sees it: the owner and team leaders, in the ChatPro dashboard. Minute data is deleted after 90 days; daily totals are kept.<br>
+  You can revoke this at any time in the tray menu or settings. Tracking stops immediately.</p>
+  <p class="confirm">Click “I agree” to confirm.</p>
+  <input type="password" id="password" placeholder="Your ChatPro password" autocomplete="current-password" style="display:none">
+  <div class="row">
+    <button class="primary" id="agree">I agree</button>
+    <button id="decline">I decline</button>
+    <button id="later">Later</button>
+  </div>
+  <div class="msg" id="msg" role="status" aria-live="polite"></div>
+</main>
+<script>
+(function () {
+  var api = window.activityConsent;
+  var buttons = ['agree', 'decline', 'later'].map(function (id) { return document.getElementById(id); });
+  var msg = document.getElementById('msg');
+  function busy(on) { buttons.forEach(function (b) { b.disabled = on; }); }
+  function show(text, kind) { msg.textContent = text; msg.className = 'msg ' + (kind || ''); }
+
+  async function submit(decision) {
+    var pwField = document.getElementById('password');
+    var pwVisible = pwField.style.display !== 'none';
+    var password = pwVisible ? pwField.value : '';
+    // Normalfall: kein Passwort noetig (das Overlay nutzt die Anmeldung dieser Sitzung).
+    // Nur im Fallback (Feld sichtbar) muss eins eingegeben werden.
+    if (decision === 'accepted' && pwVisible && !password) { show('Please enter your ChatPro password.', 'err'); return; }
+    busy(true);
+    show(decision === 'accepted' ? 'Confirming...' : '');
+    var r;
+    try { r = await api.submit({ password: password, decision: decision }); } catch (e) { r = { ok: false, error: 'Something went wrong. Please try again.' }; }
+    if (r && r.ok) {
+      pwField.value = '';
+      show(decision === 'accepted' ? 'Thank you. Activity tracking runs only while you are clocked in.' : 'Declined. ChatPro will not track your activity.', 'ok');
+      setTimeout(function () { api.close(); }, 1600);
+    } else if (r && r.needPassword) {
+      // Kein Passwort in dieser Sitzung (z. B. App neu geoeffnet): einmalig nachfragen.
+      busy(false);
+      pwField.style.display = '';
+      pwField.focus();
+      show('Please enter your ChatPro password once to confirm.', 'err');
+    } else {
+      busy(false);
+      show((r && r.error) || 'Something went wrong. Please try again.', 'err');
+    }
+  }
+
+  document.getElementById('agree').addEventListener('click', function () { submit('accepted'); });
+  document.getElementById('decline').addEventListener('click', function () { submit('declined'); });
+  document.getElementById('later').addEventListener('click', function () { api.close(); });
+  document.getElementById('password').addEventListener('keydown', function (e) { if (e.key === 'Enter') submit('accepted'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') api.close(); }); // Esc = Later
+})();
+</script>
+</body>
+</html>

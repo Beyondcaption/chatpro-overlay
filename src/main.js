@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, Tray, Menu, nativeImage, screen, shell, dialog } = require('electron');
+const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, Tray, Menu, nativeImage, screen, shell, dialog, systemPreferences } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -56,6 +56,26 @@ const store = {
   set(key, val) { this._load(); this._data[key] = val; saveStore(this._data); },
 };
 
+// ── Activity tracker (consent-based, only while clocked in) ──
+// The logic lives in src/activity/ (controller.js is pure and unit-tested); main.js only
+// wires Electron to it. Any tracker failure disables the tracker, never the overlay.
+let activityLib = null;
+try { activityLib = { ...require('./activity/tracker'), ...require('./activity/controller'), ...require('./activity/livepoll') }; } catch (e) { activityLib = null; }
+// Consent text version comes from consent.html (data-version), the single source of truth.
+const ACTIVITY_CONSENT_VERSION = (() => {
+  try {
+    const m = fs.readFileSync(path.join(__dirname, 'consent.html'), 'utf8').match(/data-version="([^"]+)"/);
+    return m ? m[1] : '2026-11-09';
+  } catch (e) { return '2026-11-09'; }
+})();
+// Dev only: point the tracker at a local chatpro-ops (e.g. http://localhost:3000).
+const ACTIVITY_URL = (!app.isPackaged && process.env.CHATPRO_ACTIVITY_URL) || OPS_URL;
+let tracker = null;
+let consentWindow = null;
+let consentShownThisRun = false;
+let accessDialogShown = false;
+let activityState = { track: false, reason: 'starting', label: 'Activity tracking: starting' };
+
 // ── Update checks live in src/updater.js (ops-server feed, not GitHub direct) ──
 // The old api.github.com/releases/latest check is gone: it needs the repo to stay
 // public and can only open a browser link. The feed flow auto-installs on Windows,
@@ -79,6 +99,9 @@ let overlayFocusedSince = 0;
 // ══════════════════════════════════════════════════════════════════
 let isLoggedIn = false;
 let currentUser = null;
+// Passwort der aktuellen Anmeldung, nur im Speicher (nie auf Platte). Wird bei der Einwilligung
+// einmal still an chatpro-ops geschickt, damit der Chatter nur bestaetigen muss, danach verworfen.
+let sessionPassword = null;
 
 // ── Language detection (scored) ──
 // Each language has a diacritic pattern (unambiguous, worth 2 points) and a
@@ -529,8 +552,35 @@ function createTray() {
     icon = nativeImage.createEmpty();
   }
   tray = new Tray(icon);
-  tray.setToolTip('ChatPro');
-  const menu = Menu.buildFromTemplate([
+  updateTrayMenu();
+  tray.on('click', () => showOverlay(null));
+}
+
+// Tray menu with the visible activity status as first entry (rebuilt on every status change).
+function updateTrayMenu() {
+  if (!tray) return;
+  try {
+    const label = activityState.label || 'Activity tracking: off';
+    const needsConsent = activityState.reason === 'no_consent' || activityState.reason === 'old_consent';
+    tray.setToolTip('ChatPro\n' + label);
+    const items = [
+      { label, enabled: false },
+    ];
+    if (needsConsent && tracker) items.push({ label: 'Activity consent...', click: () => openConsent() });
+    items.push({ label: 'Revoke consent', click: () => revokeActivity() });
+    items.push({ type: 'separator' }, ...staticTrayItems());
+    tray.setContextMenu(Menu.buildFromTemplate(items));
+  } catch (e) {
+    // Never lose Quit/Settings: fall back to the original static menu.
+    try {
+      tray.setToolTip('ChatPro');
+      tray.setContextMenu(Menu.buildFromTemplate(staticTrayItems()));
+    } catch (e2) {}
+  }
+}
+
+function staticTrayItems() {
+  return [
     { label: 'Open ChatPro', click: () => showOverlay(null) },
     { label: 'Schulung', click: () => openSchulung() },
     { label: 'Settings', click: () => openSettings() },
@@ -538,9 +588,300 @@ function createTray() {
     { label: 'Check for updates', click: () => updater.manualCheck() },
     { type: 'separator' },
     { label: 'Quit ChatPro', click: () => app.quit() },
-  ]);
-  tray.setContextMenu(menu);
-  tray.on('click', () => showOverlay(null));
+  ];
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ACTIVITY TRACKER WIRING
+// ══════════════════════════════════════════════════════════════════
+
+function macAccessibilityTrusted() {
+  if (process.platform !== 'darwin') return true;
+  try { return systemPreferences.isTrustedAccessibilityClient(false); } catch (e) { return false; }
+}
+
+function activityUsername() {
+  const who = currentUser || store.get('_sys', null);
+  // Relay LOGIN name (not the display name): the server checks the password with it.
+  return !who ? '' : (typeof who === 'string' ? who : (who.username || who.name || ''));
+}
+
+function onActivityState(s) {
+  try {
+    activityState = s;
+    updateTrayMenu();
+    if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.webContents.send('activity-state', s);
+    maybeShowConsent();
+    // Live-Poller läuft nur während getrackter Schicht (Einstempeln, Einwilligung, keine Pause).
+    if (s.track) startLivePoller(); else stopLivePoller();
+    if (s.track && !macAccessibilityTrusted()) showAccessibilityDialog();
+  } catch (e) {}
+}
+
+function startActivity() {
+  if (!activityLib) {
+    activityState = { track: false, reason: 'error', label: 'Activity tracking: error' };
+    updateTrayMenu();
+    return;
+  }
+  try {
+    tracker = activityLib.startTracker({
+      opsUrl: ACTIVITY_URL,
+      deviceHeaders: DEVICE_HEADERS,
+      store,
+      consentVersion: ACTIVITY_CONSENT_VERSION,
+      // Always sent on /state (non-Mac: always 'ok'); the server keeps it per device.
+      permHeader: () => (macAccessibilityTrusted() ? 'ok' : 'no-accessibility'),
+      canStartHooks: () => macAccessibilityTrusted(),
+      username: isLoggedIn ? activityUsername() : '',
+      onState: onActivityState,
+    });
+    // The first status can arrive synchronously inside startTracker(), before `tracker`
+    // is set; re-run the status consumers once it is.
+    onActivityState(tracker.state());
+  } catch (e) {
+    tracker = null;
+    activityState = { track: false, reason: 'error', label: 'Activity tracking: error' };
+    updateTrayMenu();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LIVE VIEW (Teil 2): Poller, verstecktes Capture-Fenster, roter Hinweis
+// ══════════════════════════════════════════════════════════════════
+let livePoller = null;
+let liveWindow = null;
+let liveBannerWindow = null;
+let liveWaiter = null; // { resolve, timer } für das Offer des Renderers
+
+// Gerätetoken wird je Anfrage aus dem Store gelesen (ASCII-bereinigt, sonst wirft https.request).
+function liveHttp() {
+  const base = activityLib.makeHttp(ACTIVITY_URL, DEVICE_HEADERS);
+  return (method, p, opts = {}) => {
+    const tok = String(store.get('_act', null) || '').replace(/[^\x20-\x7e]/g, '');
+    if (!tok) return Promise.resolve({ status: 0, json: null });
+    return base(method, p, { ...opts, headers: { ...(opts.headers || {}), 'x-activity-token': tok } });
+  };
+}
+
+let liveGen = 0; // Zähler: jede Schließung entwertet laufende begin()-Aufrufe
+
+function closeLiveWindow() {
+  liveGen++;
+  try {
+    if (liveWaiter) { clearTimeout(liveWaiter.timer); liveWaiter.resolve(null); liveWaiter = null; }
+    if (liveWindow && !liveWindow.isDestroyed()) {
+      try { liveWindow.webContents.send('live:stop'); } catch (e) {}
+      liveWindow.destroy();
+    }
+  } catch (e) {}
+  liveWindow = null;
+}
+
+const liveCapture = {
+  // Öffnet das versteckte Fenster, startet die Aufnahme aller Monitore, liefert {sdp, candidates}.
+  async begin({ id, iceServers }) {
+    closeLiveWindow();
+    const g = liveGen;
+    // Vorbereitung (getSources + loadFile) mit 20 s Timeout; bei Timeout wird alles geschlossen.
+    let to = null;
+    const timeout = new Promise((resolve) => { to = setTimeout(() => { closeLiveWindow(); resolve(null); }, 20000); });
+    try {
+      return await Promise.race([timeout, liveBegin(g, iceServers)]);
+    } finally { clearTimeout(to); }
+  },
+  remote(payload) {
+    if (liveWindow && !liveWindow.isDestroyed()) liveWindow.webContents.send('live:remote', payload);
+  },
+  stop() { closeLiveWindow(); },
+};
+
+async function liveBegin(g, iceServers) {
+  {
+    const { desktopCapturer } = require('electron');
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
+    if (g !== liveGen) return null; // inzwischen gestoppt: keine Aufnahme starten
+    const sourceIds = sources.map(s => s.id);
+    if (!sourceIds.length) return null;
+    const win = new BrowserWindow({
+      show: false, width: 320, height: 240,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload-live.js'),
+        backgroundThrottling: false,
+        devTools: false,
+      },
+    });
+    liveWindow = win;
+    win.on('closed', () => { if (liveWindow === win) liveWindow = null; });
+    await win.loadFile(path.join(__dirname, 'live.html'));
+    if (g !== liveGen || liveWindow !== win) { try { if (!win.isDestroyed()) win.destroy(); } catch (e) {} return null; }
+    const offer = new Promise((resolve) => {
+      const timer = setTimeout(() => { liveWaiter = null; resolve(null); }, 20000);
+      liveWaiter = { resolve, timer };
+    });
+    win.webContents.send('live:start', { sourceIds, iceServers: iceServers || [] });
+    return offer;
+  }
+}
+
+ipcMain.on('live:offer', (event, payload) => {
+  try {
+    if (!liveWindow || event.sender !== liveWindow.webContents) return;
+    if (liveWaiter) {
+      const w = liveWaiter; liveWaiter = null; clearTimeout(w.timer);
+      w.resolve(payload && typeof payload.sdp === 'string' ? { sdp: payload.sdp, candidates: Array.isArray(payload.candidates) ? payload.candidates : [] } : null);
+    }
+  } catch (e) {}
+});
+ipcMain.on('live:candidate', (event, cand) => {
+  try {
+    if (!liveWindow || event.sender !== liveWindow.webContents) return;
+    if (livePoller) livePoller.candidate(cand);
+  } catch (e) {}
+});
+
+// Roter Hinweis: eigenes rahmenloses Fenster, über allem, auch über Vollbild.
+function showLiveBanner(viewer) {
+  try {
+    if (!liveBannerWindow || liveBannerWindow.isDestroyed()) {
+      // Kleiner, unaufdringlicher roter Punkt unten rechts (lenkt nicht von der Arbeit ab,
+      // bleibt aber sichtbar, solange die Live-Ansicht laeuft).
+      const wa = screen.getPrimaryDisplay().workArea;
+      const w = 26, h = 26, margin = 14;
+      liveBannerWindow = new BrowserWindow({
+        width: w, height: h, x: wa.x + wa.width - w - margin, y: wa.y + wa.height - h - margin,
+        frame: false, transparent: true, resizable: false, movable: false, focusable: false,
+        skipTaskbar: true, show: false, hasShadow: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: path.join(__dirname, 'preload-banner.js'),
+          devTools: false,
+        },
+      });
+      liveBannerWindow.setAlwaysOnTop(true, 'screen-saver');
+      liveBannerWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      liveBannerWindow.setIgnoreMouseEvents(true);
+      liveBannerWindow.on('closed', () => { liveBannerWindow = null; });
+      liveBannerWindow.loadFile(path.join(__dirname, 'live-banner.html'));
+    }
+    const win = liveBannerWindow;
+    const push = () => {
+      if (win.isDestroyed()) return;
+      win.webContents.send('live-banner:viewer', viewer || '');
+      win.showInactive();
+      win.setAlwaysOnTop(true, 'screen-saver');
+    };
+    if (win.webContents.isLoading()) win.webContents.once('did-finish-load', push); else push();
+    return true;
+  } catch (e) {
+    // Fail-closed: Fenster nicht erstellbar -> false, der Poller startet dann keine Aufnahme.
+    hideLiveBanner();
+    return false;
+  }
+}
+
+function hideLiveBanner() {
+  try {
+    if (liveBannerWindow && !liveBannerWindow.isDestroyed()) liveBannerWindow.destroy();
+  } catch (e) {}
+  liveBannerWindow = null;
+}
+
+function startLivePoller() {
+  try {
+    if (livePoller || !activityLib || !activityLib.createLivePoller) return;
+    livePoller = activityLib.createLivePoller({
+      http: liveHttp(),
+      capture: liveCapture,
+      onBanner: (b) => { if (b && b.active) return showLiveBanner(b.viewer); hideLiveBanner(); return true; },
+    });
+    livePoller.start();
+  } catch (e) { livePoller = null; }
+}
+
+function stopLivePoller() {
+  try { if (livePoller) livePoller.stop(); } catch (e) {}
+  livePoller = null;
+  closeLiveWindow();
+  hideLiveBanner();
+}
+
+// Consent window once per app start: logged in, no (current) consent, this version not declined.
+function maybeShowConsent() {
+  try {
+    if (!tracker || !activityLib) return;
+    const show = activityLib.shouldShowConsent({
+      loggedIn: isLoggedIn && !!activityUsername(),
+      reason: activityState.reason,
+      declinedVersion: store.get('_actDeclined', null),
+      version: ACTIVITY_CONSENT_VERSION,
+      shownThisRun: consentShownThisRun,
+    });
+    if (!show) return;
+    consentShownThisRun = true;
+    openConsent();
+  } catch (e) {}
+}
+
+function openConsent() {
+  try {
+    if (consentWindow && !consentWindow.isDestroyed()) { consentWindow.show(); consentWindow.focus(); return; }
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    consentWindow = new BrowserWindow({
+      width: 520, height: 560,
+      x: Math.round((width - 520) / 2), y: Math.round((height - 560) / 2),
+      frame: false, transparent: false, resizable: false, show: false,
+      skipTaskbar: false,
+      icon: path.join(__dirname, '..', 'assets', 'icon.png'),
+      backgroundColor: '#121212',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload-consent.js'),
+        devTools: false
+      },
+    });
+    consentWindow.loadFile(path.join(__dirname, 'consent.html'));
+    consentWindow.once('ready-to-show', () => { if (consentWindow && !consentWindow.isDestroyed()) { consentWindow.show(); consentWindow.focus(); } });
+    consentWindow.on('closed', () => { consentWindow = null; });
+    setupWindowSecurity(consentWindow);
+  } catch (e) {}
+}
+
+async function revokeActivity() {
+  try {
+    if (tracker) {
+      await tracker.revoke();
+    } else {
+      // Tracker never started: still drop the local consent token and buffer.
+      store.set('_act', null);
+      store.set('_actBuf', []);
+      store.set('_actDeclined', ACTIVITY_CONSENT_VERSION);
+    }
+    dialog.showMessageBox({ type: 'info', buttons: ['OK'], title: 'ChatPro', message: 'Consent revoked.', detail: 'Activity tracking is off on this computer. You can give consent again from the tray menu.' }).catch(() => {});
+  } catch (e) {}
+  return { ok: true };
+}
+
+// Mac: uiohook needs Accessibility. Without it no input is counted (the server is told via
+// x-activity-perm); ask once per app start and offer to open the system prompt.
+function showAccessibilityDialog() {
+  if (process.platform !== 'darwin' || accessDialogShown) return;
+  accessDialogShown = true;
+  dialog.showMessageBox({
+    type: 'info',
+    buttons: ['Open settings', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'ChatPro activity tracking',
+    message: 'ChatPro needs Accessibility access to count keys and mouse use.',
+    detail: 'Turn on ChatPro in System Settings > Privacy & Security > Accessibility, then restart ChatPro.',
+  }).then((r) => {
+    if (r.response === 0) { try { systemPreferences.isTrustedAccessibilityClient(true); } catch (e) {} }
+  }).catch(() => {});
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -561,12 +902,16 @@ app.whenReady().then(() => {
   } else {
     setTimeout(() => showStealthLogin(), 2000);
   }
+
+  startActivity();
 });
 
 app.on('window-all-closed', (e) => e.preventDefault());
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   if (clipboardInterval) clearInterval(clipboardInterval);
+  try { if (tracker) tracker.stop(); } catch (e) {}
+  stopLivePoller();
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -667,12 +1012,17 @@ ipcMain.handle('stealthLogin', async (event, { username, password }) => {
               const result = JSON.parse(data);
               isLoggedIn = true;
               currentUser = result.user;
+              sessionPassword = password; // nur im Speicher, fuer die stille Einwilligung
               store.set('_sys', currentUser);
 
               if (loginWindow && !loginWindow.isDestroyed()) {
                 loginWindow.close();
               }
-              
+              // Freshly logged in: the consent window may now be due.
+              // A different user on this device: drop the previous user's token and buffer.
+              try { if (tracker) tracker.bindUser(activityUsername()).catch(() => {}); } catch (e) {}
+              setTimeout(() => maybeShowConsent(), 1500);
+
               resolve({ ok: true });
             } else {
               resolve({ ok: false, error: 'Invalid credentials' });
@@ -818,3 +1168,39 @@ ipcMain.handle('close-model-sheet',() => { if (modelSheetWindow && !modelSheetWi
 ipcMain.handle('open-settings',  () => openSettings());
 ipcMain.handle('open-url',       (e, url) => shell.openExternal(url));
 ipcMain.handle('check-update',   () => { updater.manualCheck(); return { ok: true }; });
+
+// ── Activity tracker IPC (every handler wrapped: errors never reach the overlay) ──
+ipcMain.handle('activity-consent', async (e, { password, decision } = {}) => {
+  try {
+    // Only the consent window may give or decline consent.
+    if (!consentWindow || consentWindow.isDestroyed() || e.sender !== consentWindow.webContents) return { ok: false, error: 'Please use the consent window.' };
+    if (!tracker) return { ok: false, error: 'Activity tracking is not available on this computer.' };
+    // Kein Passwortfeld im Einwilligungsfenster: die Identitaet kommt aus der ChatPro-Anmeldung
+    // dieser Sitzung (sessionPassword). Fehlt sie (App neu geoeffnet / nur gespeicherter Login),
+    // oeffnen wir das gewohnte Login-Fenster; nach dem Login genuegt ein erneuter Klick auf I agree.
+    const pw = sessionPassword || '';
+    if (decision === 'accepted' && !pw) {
+      try { showStealthLogin(); } catch (e) {}
+      return { ok: false, needLogin: true };
+    }
+    const r = await tracker.consent({
+      username: activityUsername(),
+      password: pw,
+      decision: decision === 'accepted' ? 'accepted' : 'declined',
+      deviceId: DEVICE_HEADERS['x-device-id'] || '',
+    });
+    if (r && r.ok && decision === 'accepted') sessionPassword = null; // verbraucht
+    return r;
+  } catch (err) {
+    return { ok: false, error: 'Something went wrong. Please try again.' };
+  }
+});
+ipcMain.handle('activity-consent-close', () => {
+  try { if (consentWindow && !consentWindow.isDestroyed()) consentWindow.close(); } catch (e) {}
+  return { ok: true };
+});
+ipcMain.handle('activity-revoke', () => revokeActivity());
+ipcMain.handle('activity-state', () => {
+  try { return { ...activityState }; } catch (e) { return { track: false, reason: 'error', label: 'Activity tracking: error' }; }
+});
+ipcMain.handle('open-activity-consent', () => { try { if (tracker) openConsent(); } catch (e) {} return { ok: true }; });
