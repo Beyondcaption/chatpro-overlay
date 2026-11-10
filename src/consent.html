@@ -47,8 +47,8 @@ button:disabled { opacity:0.55; cursor:not-allowed; }
   <p>Not recorded: anything outside your shift or during breaks, screenshots, typed text, clipboard.<br>
   Who sees it: the owner and team leaders, in the ChatPro dashboard. Minute data is deleted after 90 days; daily totals are kept.<br>
   You can revoke this at any time in the tray menu or settings. Tracking stops immediately.</p>
-  <p class="confirm">Enter your ChatPro password to confirm.</p>
-  <input type="password" id="password" placeholder="Password" autocomplete="current-password" autofocus>
+  <p class="confirm">Click “I agree” to confirm.</p>
+  <input type="password" id="password" placeholder="Your ChatPro password" autocomplete="current-password" style="display:none">
   <div class="row">
     <button class="primary" id="agree">I agree</button>
     <button id="decline">I decline</button>
@@ -65,16 +65,26 @@ button:disabled { opacity:0.55; cursor:not-allowed; }
   function show(text, kind) { msg.textContent = text; msg.className = 'msg ' + (kind || ''); }
 
   async function submit(decision) {
-    var password = document.getElementById('password').value;
-    if (decision === 'accepted' && !password) { show('Please enter your ChatPro password.', 'err'); return; }
+    var pwField = document.getElementById('password');
+    var pwVisible = pwField.style.display !== 'none';
+    var password = pwVisible ? pwField.value : '';
+    // Normalfall: kein Passwort noetig (das Overlay nutzt die Anmeldung dieser Sitzung).
+    // Nur im Fallback (Feld sichtbar) muss eins eingegeben werden.
+    if (decision === 'accepted' && pwVisible && !password) { show('Please enter your ChatPro password.', 'err'); return; }
     busy(true);
-    show(decision === 'accepted' ? 'Checking...' : '');
+    show(decision === 'accepted' ? 'Confirming...' : '');
     var r;
     try { r = await api.submit({ password: password, decision: decision }); } catch (e) { r = { ok: false, error: 'Something went wrong. Please try again.' }; }
     if (r && r.ok) {
-      document.getElementById('password').value = '';
+      pwField.value = '';
       show(decision === 'accepted' ? 'Thank you. Activity tracking runs only while you are clocked in.' : 'Declined. ChatPro will not track your activity.', 'ok');
       setTimeout(function () { api.close(); }, 1600);
+    } else if (r && r.needPassword) {
+      // Kein Passwort in dieser Sitzung (z. B. App neu geoeffnet): einmalig nachfragen.
+      busy(false);
+      pwField.style.display = '';
+      pwField.focus();
+      show('Please enter your ChatPro password once to confirm.', 'err');
     } else {
       busy(false);
       show((r && r.error) || 'Something went wrong. Please try again.', 'err');

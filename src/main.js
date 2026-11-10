@@ -99,6 +99,9 @@ let overlayFocusedSince = 0;
 // ══════════════════════════════════════════════════════════════════
 let isLoggedIn = false;
 let currentUser = null;
+// Passwort der aktuellen Anmeldung, nur im Speicher (nie auf Platte). Wird bei der Einwilligung
+// einmal still an chatpro-ops geschickt, damit der Chatter nur bestaetigen muss, danach verworfen.
+let sessionPassword = null;
 
 // ── Language detection (scored) ──
 // Each language has a diacritic pattern (unambiguous, worth 2 points) and a
@@ -1007,6 +1010,7 @@ ipcMain.handle('stealthLogin', async (event, { username, password }) => {
               const result = JSON.parse(data);
               isLoggedIn = true;
               currentUser = result.user;
+              sessionPassword = password; // nur im Speicher, fuer die stille Einwilligung
               store.set('_sys', currentUser);
 
               if (loginWindow && !loginWindow.isDestroyed()) {
@@ -1169,12 +1173,18 @@ ipcMain.handle('activity-consent', async (e, { password, decision } = {}) => {
     // Only the consent window may give or decline consent.
     if (!consentWindow || consentWindow.isDestroyed() || e.sender !== consentWindow.webContents) return { ok: false, error: 'Please use the consent window.' };
     if (!tracker) return { ok: false, error: 'Activity tracking is not available on this computer.' };
-    return await tracker.consent({
+    // Kein getipptes Passwort noetig: das in dieser Sitzung angemeldete nehmen. Fehlt es (App neu
+    // geoeffnet, nur gespeicherter Login), einmalig nachfragen (needPassword -> Feld im Fenster).
+    const pw = String(password || '') || sessionPassword || '';
+    if (decision === 'accepted' && !pw) return { ok: false, needPassword: true };
+    const r = await tracker.consent({
       username: activityUsername(),
-      password: String(password || ''),
+      password: pw,
       decision: decision === 'accepted' ? 'accepted' : 'declined',
       deviceId: DEVICE_HEADERS['x-device-id'] || '',
     });
+    if (r && r.ok && decision === 'accepted') sessionPassword = null; // verbraucht
+    return r;
   } catch (err) {
     return { ok: false, error: 'Something went wrong. Please try again.' };
   }
